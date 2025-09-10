@@ -26,18 +26,37 @@ function RootRedirect() {
   const { user, loading } = useAuth();
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const checkRedirectPath = async () => {
+      setDebugInfo(`用户状态: ${user ? '已登录' : '未登录'}, 加载中: ${loading}`);
+      
       if (user && !loading) {
         setIsChecking(true);
+        setDebugInfo('开始查询系统设置...');
         try {
-          // 检查AI服务预约设置
-          const { data: aiAppointmentRequired } = await supabase
+          // 设置超时保护
+          const settingsPromise = supabase
             .from("system_settings")
             .select("setting_value")
             .eq("setting_key", "ai_appointment_required")
             .maybeSingle();
+          
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('数据库查询超时')), 5000)
+          );
+          
+          const { data: aiAppointmentRequired, error } = await Promise.race([settingsPromise, timeoutPromise]) as any;
+
+          if (error) {
+            console.error("查询系统设置失败:", error);
+            setDebugInfo(`查询失败: ${error.message}`);
+          } else {
+            setDebugInfo(`查询成功: ${aiAppointmentRequired?.setting_value || 'null'}`);
+          }
 
           // 根据设置决定跳转路径
           if (aiAppointmentRequired?.setting_value === "true") {
@@ -45,24 +64,48 @@ function RootRedirect() {
           } else {
             setRedirectPath("/dashboard");
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("检查跳转路径失败:", error);
+          setDebugInfo(`异常: ${error.message}`);
           // 出错时默认跳转到预约页面
           setRedirectPath("/appointment");
         } finally {
           setIsChecking(false);
         }
+      } else if (!loading && !user) {
+        // 用户未登录，直接跳转到登录页
+        setRedirectPath("/login");
       }
     };
 
+    // 设置最大等待时间
+    timeoutId = setTimeout(() => {
+      console.warn('RootRedirect 超时，默认跳转到预约页面');
+      setDebugInfo('超时，使用默认跳转');
+      setRedirectPath("/appointment");
+      setIsChecking(false);
+    }, 15000);
+
     checkRedirectPath();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [user, loading]);
 
   // 显示加载状态直到确定跳转路径
   if (loading || isChecking || redirectPath === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-gray-600 mb-2">正在加载...</div>
+          {debugInfo && (
+            <div className="text-sm text-gray-500">{debugInfo}</div>
+          )}
+        </div>
       </div>
     );
   }
