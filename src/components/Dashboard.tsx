@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -7,28 +7,8 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [aiServicesAvailable, setAiServicesAvailable] = useState(true);
-
-  useEffect(() => {
-    const checkAiServicesSetting = async () => {
-      try {
-        const { data } = await supabase
-          .from("system_settings")
-          .select("setting_value")
-          .eq("setting_key", "ai_appointment_required")
-          .maybeSingle();
-
-        // 如果AI服务需要预约，则禁用直接访问
-        if (data?.setting_value === "true") {
-          setAiServicesAvailable(false);
-        }
-      } catch (error) {
-        console.error("获取AI服务设置失败:", error);
-      }
-    };
-
-    checkAiServicesSetting();
-  }, []);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [selectedAiService, setSelectedAiService] = useState<string>("");
 
   const handleSignOut = async () => {
     setIsLoading(true);
@@ -40,6 +20,42 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 检查AI服务是否需要预约
+  const checkAiServicesSetting = async () => {
+    try {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("setting_value")
+        .eq("setting_key", "ai_appointment_required")
+        .maybeSingle();
+
+      return data?.setting_value === "true";
+    } catch (error) {
+      console.error("获取AI服务设置失败:", error);
+      return false;
+    }
+  };
+
+  // 处理AI服务点击
+  const handleAiServiceClick = async (serviceName: string, servicePath: string) => {
+    const needsAppointment = await checkAiServicesSetting();
+    
+    if (needsAppointment) {
+      setSelectedAiService(serviceName);
+      setShowAppointmentModal(true);
+    } else {
+      navigate(servicePath, {
+        state: { forceNonAppointment: true },
+      });
+    }
+  };
+
+  // 确认预约
+  const handleConfirmAppointment = () => {
+    setShowAppointmentModal(false);
+    navigate("/appointment");
   };
 
   return (
@@ -107,19 +123,10 @@ export default function Dashboard() {
                 ✨ 豆包大模型 | 温暖陪伴
               </div>
               <button
-                onClick={() =>
-                  navigate("/chat-doubao", {
-                    state: { forceNonAppointment: true },
-                  })
-                }
-                disabled={!aiServicesAvailable}
-                className={`w-full py-2 px-4 rounded-md transition-colors ${
-                  aiServicesAvailable
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-gray-400 text-white cursor-not-allowed"
-                }`}
+                onClick={() => handleAiServiceClick("智心助手(豆包)", "/chat-doubao")}
+                className="w-full py-2 px-4 rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700"
               >
-                {aiServicesAvailable ? "开始对话" : "需要预约"}
+                开始对话
               </button>
             </div>
 
@@ -155,19 +162,10 @@ export default function Dashboard() {
                 ✨ Peppy AI | 积极陪伴
               </div>
               <button
-                onClick={() =>
-                  navigate("/chat-peppy", {
-                    state: { forceNonAppointment: true },
-                  })
-                }
-                disabled={!aiServicesAvailable}
-                className={`w-full py-2 px-4 rounded-md transition-colors ${
-                  aiServicesAvailable
-                    ? "bg-purple-600 text-white hover:bg-purple-700"
-                    : "bg-gray-400 text-white cursor-not-allowed"
-                }`}
+                onClick={() => handleAiServiceClick("Peppy助手", "/chat-peppy")}
+                className="w-full py-2 px-4 rounded-md transition-colors bg-purple-600 text-white hover:bg-purple-700"
               >
-                {aiServicesAvailable ? "开始对话" : "需要预约"}
+                开始对话
               </button>
             </div>
           </div>
@@ -225,13 +223,8 @@ export default function Dashboard() {
           <h2 className="text-lg font-medium text-gray-900 mb-4">快速访问</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <button
-              onClick={() => navigate("/chat-doubao")}
-              disabled={!aiServicesAvailable}
-              className={`flex flex-col items-center p-4 text-center rounded-lg transition-colors ${
-                aiServicesAvailable
-                  ? "hover:bg-gray-50"
-                  : "opacity-50 cursor-not-allowed"
-              }`}
+              onClick={() => handleAiServiceClick("智心助手", "/chat-doubao")}
+              className="flex flex-col items-center p-4 text-center rounded-lg transition-colors hover:bg-gray-50"
             >
               <svg
                 className="h-8 w-8 text-blue-600 mb-2"
@@ -250,13 +243,8 @@ export default function Dashboard() {
             </button>
 
             <button
-              onClick={() => navigate("/chat-peppy")}
-              disabled={!aiServicesAvailable}
-              className={`flex flex-col items-center p-4 text-center rounded-lg transition-colors ${
-                aiServicesAvailable
-                  ? "hover:bg-gray-50"
-                  : "opacity-50 cursor-not-allowed"
-              }`}
+              onClick={() => handleAiServiceClick("Peppy助手", "/chat-peppy")}
+              className="flex flex-col items-center p-4 text-center rounded-lg transition-colors hover:bg-gray-50"
             >
               <svg
                 className="h-8 w-8 text-purple-600 mb-2"
@@ -347,6 +335,52 @@ export default function Dashboard() {
           Created by MiniMax Agent
         </div>
       </main>
+
+      {/* 预约确认弹窗 */}
+      {showAppointmentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="bg-orange-100 p-2 rounded-full mr-3">
+                <svg
+                  className="h-6 w-6 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                需要预约才能使用
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              目前 <span className="font-medium text-orange-600">{selectedAiService}</span> 需要预约后才能使用。
+              请先预约时间，然后您就可以享受AI心理陪伴服务了。
+            </p>
+            <div className="flex space-x-4 justify-end">
+              <button
+                onClick={() => setShowAppointmentModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmAppointment}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                去预约
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   ChatSession,
 } from "../lib/chatStorage";
 import ChatHistorySidebar from "./ChatHistorySidebar";
+import { callDoubaoStreamDirectly } from "@/lib/callDoubaoStreamDirectly";
 
 interface Message {
   id: string;
@@ -227,82 +228,22 @@ export default function ChatDoubao() {
 
   // 定期检查预约状态（每分钟检查一次）
   useEffect(() => {
-    const interval = setInterval(() => {
-      checkAppointmentStatus();
-    }, 60000); // 60秒检查一次
+    if (!user || !isAppointmentMode) return; // 只在预约模式下检查
+
+    const interval = setInterval(async () => {
+      const newStatus = await checkAppointmentStatus();
+      // 只有当状态真正改变时才更新
+      if (newStatus.isActive !== isAppointmentActive) {
+        setIsAppointmentActive(newStatus.isActive);
+      }
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, isAppointmentMode, isAppointmentActive]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/login");
-  };
-
-  const callDoubaoStream = async (
-    userMessage: string,
-    onChunk: (chunk: string) => void
-  ): Promise<void> => {
-    try {
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/ai-chat-stream`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseAnonKey}`,
-            Accept: "text/event-stream",
-          },
-          body: JSON.stringify({
-            message: userMessage,
-            conversationHistory: conversationHistory,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("AI服务暂时不可用");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("无法读取响应流");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") {
-              return;
-            }
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                onChunk(parsed.content);
-              }
-            } catch (e) {
-              // 忽略解析错误，继续处理下一行
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("AI聊天错误:", error);
-      onChunk(
-        "抱歉，我现在有点困难理解。不过我还在这里陪伴你，你可以换个方式告诉我你的想法吗？或者我们可以稍后再聊。"
-      );
-    }
   };
 
   const handleSendMessage = async () => {
@@ -335,8 +276,19 @@ export default function ChatDoubao() {
       timestamp: new Date(),
     };
 
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
+    // 为AI响应创建一个占位符，这是实现流式更新的基础
+    const aiPlaceholderMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      content: "",
+      role: "assistant",
+      timestamp: new Date(),
+    };
+
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      newUserMessage,
+      aiPlaceholderMessage,
+    ]);
 
     // 保存到数据库和本地存储
     if (chatStorage) {
@@ -359,55 +311,54 @@ export default function ChatDoubao() {
     ];
     setConversationHistory(newHistory);
 
-    // 创建AI消息占位符
-    const newAIMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      content: "",
-      role: "assistant",
-      timestamp: new Date(),
-    };
-
-    const messagesWithAI = [...updatedMessages, newAIMessage];
-    setMessages(messagesWithAI);
-
-    // 显示打字效果
-    setIsTyping(true);
-
     try {
       // 使用流式输出调用智心助手
       let fullResponse = "";
-      await callDoubaoStream(userMessage, (chunk: string) => {
-        fullResponse += chunk;
-        // 更新AI消息内容
-        const updatedAIMessage = { ...newAIMessage, content: fullResponse };
-        const currentMessages = [...updatedMessages, updatedAIMessage];
-        setMessages(currentMessages);
-      });
+      let isFirstChunk = true;
+      setIsTyping(true);
+      await callDoubaoStreamDirectly(
+        userMessage,
+        conversationHistory,
+        (chunk: string) => {
+          if (isFirstChunk) {
+            setIsLoading(false); // 收到第一个数据块，表示连接成功，关闭全局加载
+
+            isFirstChunk = false;
+          }
+
+          fullResponse += chunk;
+
+          setMessages((prevMessages) => {
+            // 复制一份最新的消息数组
+            const updatedMessages = [...prevMessages];
+            const lastMessageIndex = updatedMessages.length - 1;
+
+            // 安全地更新最后一条消息（即我们的AI占位符）的内容
+            if (
+              lastMessageIndex >= 0 &&
+              updatedMessages[lastMessageIndex].role === "assistant"
+            ) {
+              updatedMessages[lastMessageIndex].content = fullResponse;
+            }
+            return updatedMessages; // 返回更新后的数组
+          });
+        }
+      );
 
       // 流式输出完成后，保存完整消息
-      const finalAIMessage = { ...newAIMessage, content: fullResponse };
-      const finalMessages = [...updatedMessages, finalAIMessage];
-
-      // 保存到数据库和本地存储
+      const finalAIMessage = { ...aiPlaceholderMessage, content: fullResponse };
       if (chatStorage) {
-        try {
-          await chatStorage.saveMessage(
-            finalAIMessage,
-            aiModel,
-            isAppointmentActive,
-            currentAppointmentId || undefined
-          );
-        } catch (error) {
-          console.error("保存AI消息到数据库失败:", error);
-        }
+        await chatStorage.saveMessage(
+          finalAIMessage,
+          aiModel,
+          isAppointmentActive,
+          currentAppointmentId || undefined
+        );
       }
-
-      // 更新对话历史
-      const finalHistory = [
+      setConversationHistory([
         ...newHistory,
         { role: "assistant", content: fullResponse },
-      ];
-      setConversationHistory(finalHistory);
+      ]);
     } catch (error) {
       console.error("发送消息错误:", error);
       const errorMessage: Message = {
@@ -416,8 +367,7 @@ export default function ChatDoubao() {
         role: "assistant",
         timestamp: new Date(),
       };
-      const errorMessages = [...updatedMessages, errorMessage];
-      setMessages(errorMessages);
+      setMessages((prev) => [...prev.slice(0, -1), errorMessage]);
     } finally {
       setIsTyping(false);
       setIsLoading(false);
@@ -547,8 +497,6 @@ export default function ChatDoubao() {
       const resetMessages = [defaultMessage];
       setMessages(resetMessages);
       setConversationHistory([]);
-
-
     } catch (error) {
       console.error("创建新会话失败:", error);
     }

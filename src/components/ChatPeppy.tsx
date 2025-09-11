@@ -270,11 +270,6 @@ export default function ChatPeppy() {
         }
       );
 
-      console.log(
-        "响应状态:",
-        response.status,
-        response.headers.get("content-type")
-      );
 
       if (!response.ok) {
         console.error("响应错误:", response.status, response.statusText);

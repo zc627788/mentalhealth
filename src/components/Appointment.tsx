@@ -82,6 +82,7 @@ export default function Appointment() {
   const [success, setSuccess] = useState<string>("");
   const [aiAppointmentRequired, setAiAppointmentRequired] =
     useState<boolean>(false);
+  const [showNonAppointmentModal, setShowNonAppointmentModal] = useState(false);
 
   // 实时监听可用时间段的更新
   useRealtimeTable({
@@ -315,7 +316,7 @@ export default function Appointment() {
       console.error("加载用户预约错误:", error);
       throw error;
     }
-  }, [user]);
+  }, [user?.id]);
 
   const loadAiAppointmentSetting = useCallback(async () => {
     try {
@@ -332,6 +333,42 @@ export default function Appointment() {
       setAiAppointmentRequired(false);
     }
   }, []);
+
+  // 检查AI服务是否需要预约
+  const checkAiServicesSetting = async () => {
+    try {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("setting_value")
+        .eq("setting_key", "ai_appointment_required")
+        .maybeSingle();
+
+      return data?.setting_value === "true";
+    } catch (error) {
+      console.error("获取AI服务设置失败:", error);
+      return false;
+    }
+  };
+
+  // 处理AI服务进入
+  const handleAiServiceEntry = async (appointment: UserAppointment) => {
+    const needsAppointment = await checkAiServicesSetting();
+    
+    if (needsAppointment) {
+      // 需要预约，直接进入
+      const destination = appointment.ai_model === "doubao" ? "/chat-doubao" : "/chat-peppy";
+      navigate(destination, { state: { appointment } });
+    } else {
+      // 不需要预约，显示弹窗
+      setShowNonAppointmentModal(true);
+    }
+  };
+
+  // 确认跳转到Dashboard
+  const handleConfirmToDashboard = () => {
+    setShowNonAppointmentModal(false);
+    navigate("/dashboard");
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -353,7 +390,7 @@ export default function Appointment() {
     if (user) {
       loadData();
     }
-  }, [user, loadData]);
+  }, [user?.id, loadData]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -908,15 +945,7 @@ export default function Appointment() {
 
                               return (
                                 <button
-                                  onClick={() => {
-                                    const destination =
-                                      appointment.ai_model === "doubao"
-                                        ? "/chat-doubao"
-                                        : "/chat-peppy";
-                                    navigate(destination, {
-                                      state: { appointment },
-                                    });
-                                  }}
+                                  onClick={() => handleAiServiceEntry(appointment)}
                                   disabled={!isTimeReached}
                                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     isTimeReached
@@ -1065,6 +1094,52 @@ export default function Appointment() {
           </div>
         )}
       </div>
+
+      {/* 非预约状态弹窗 */}
+      {showNonAppointmentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="bg-green-100 p-2 rounded-full mr-3">
+                <svg
+                  className="h-6 w-6 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                AI服务已开放
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              目前AI心理陪伴服务已开放，无需预约即可使用。
+              您可以直接在首页开始与AI助手对话。
+            </p>
+            <div className="flex space-x-4 justify-end">
+              <button
+                onClick={() => setShowNonAppointmentModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmToDashboard}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                去首页
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

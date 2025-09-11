@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -26,17 +26,19 @@ function RootRedirect() {
   const { user, loading } = useAuth();
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    
+
     const checkRedirectPath = async () => {
-      setDebugInfo(`用户状态: ${user ? '已登录' : '未登录'}, 加载中: ${loading}`);
-      
+      setDebugInfo(
+        `用户状态: ${user ? "已登录" : "未登录"}, 加载中: ${loading}`
+      );
+
       if (user && !loading) {
         setIsChecking(true);
-        setDebugInfo('开始查询系统设置...');
+        setDebugInfo("开始查询系统设置...");
         try {
           // 设置超时保护
           const settingsPromise = supabase
@@ -44,18 +46,23 @@ function RootRedirect() {
             .select("setting_value")
             .eq("setting_key", "ai_appointment_required")
             .maybeSingle();
-          
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('数据库查询超时')), 5000)
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("数据库查询超时")), 5000)
           );
-          
-          const { data: aiAppointmentRequired, error } = await Promise.race([settingsPromise, timeoutPromise]) as any;
+
+          const { data: aiAppointmentRequired, error } = (await Promise.race([
+            settingsPromise,
+            timeoutPromise,
+          ])) as any;
 
           if (error) {
             console.error("查询系统设置失败:", error);
             setDebugInfo(`查询失败: ${error.message}`);
           } else {
-            setDebugInfo(`查询成功: ${aiAppointmentRequired?.setting_value || 'null'}`);
+            setDebugInfo(
+              `查询成功: ${aiAppointmentRequired?.setting_value || "null"}`
+            );
           }
 
           // 根据设置决定跳转路径
@@ -80,8 +87,8 @@ function RootRedirect() {
 
     // 设置最大等待时间
     timeoutId = setTimeout(() => {
-      console.warn('RootRedirect 超时，默认跳转到预约页面');
-      setDebugInfo('超时，使用默认跳转');
+      console.warn("RootRedirect 超时，默认跳转到预约页面");
+      setDebugInfo("超时，使用默认跳转");
       setRedirectPath("/appointment");
       setIsChecking(false);
     }, 15000);
@@ -93,7 +100,7 @@ function RootRedirect() {
         clearTimeout(timeoutId);
       }
     };
-  }, [user, loading]);
+  }, [user?.id, loading]);
 
   // 显示加载状态直到确定跳转路径
   if (loading || isChecking || redirectPath === null) {
@@ -127,9 +134,11 @@ function ProtectedRoute({
   path?: string;
 }) {
   const { user, loading } = useAuth();
+
   const navigate = useNavigate();
   const [shouldRedirect, setShouldRedirect] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  console.log("🚀 ~ file: App.tsx:142 ~ isChecking:", isChecking);
 
   useEffect(() => {
     const checkRouteAccess = async () => {
@@ -196,7 +205,7 @@ function ProtectedRoute({
     if (user) {
       checkRouteAccess();
     }
-  }, [user, path]);
+  }, [user?.id, path]);
 
   useEffect(() => {
     if (shouldRedirect) {
@@ -253,7 +262,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     };
 
     checkRedirectPath();
-  }, [user]);
+  }, [user?.id]);
 
   // 显示加载状态直到确定跳转路径
   if (loading || isChecking || (user && redirectPath === null)) {

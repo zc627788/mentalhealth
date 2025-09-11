@@ -1390,154 +1390,6 @@ export default function AdminDashboard() {
             )}
 
             {/* Meeting Link Modal */}
-            {showMeetingLinkModal && selectedAppointment && (
-              <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                <div className="relative top-20 mx-auto p-5 border w-[32rem] shadow-lg rounded-md bg-white">
-                  <div className="mt-3">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      设置会议链接
-                    </h3>
-
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <h4 className="font-medium text-blue-900">预约信息</h4>
-                      <p className="text-sm text-blue-700">
-                        主题：{selectedAppointment.topic}
-                      </p>
-                      <p className="text-sm text-blue-700">
-                        时间：{formatDate(selectedAppointment.appointment_date)}{" "}
-                        {formatTime(selectedAppointment.start_time)}
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          会议平台 *
-                        </label>
-                        <select
-                          value={meetingLinkForm.meeting_platform}
-                          onChange={(e) =>
-                            setMeetingLinkForm((prev) => ({
-                              ...prev,
-                              meeting_platform: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="Zoom">Zoom</option>
-                          <option value="腾讯会议">腾讯会议</option>
-                          <option value="钉钉">钉钉</option>
-                          <option value="飞书">飞书</option>
-                          <option value="其他">其他</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          会议链接 *
-                        </label>
-                        <input
-                          type="url"
-                          value={meetingLinkForm.meeting_url}
-                          onChange={(e) =>
-                            setMeetingLinkForm((prev) => ({
-                              ...prev,
-                              meeting_url: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="请输入完整的会议链接"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          会议ID
-                        </label>
-                        <input
-                          type="text"
-                          value={meetingLinkForm.meeting_id}
-                          onChange={(e) =>
-                            setMeetingLinkForm((prev) => ({
-                              ...prev,
-                              meeting_id: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="会议ID（如有）"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          会议密码
-                        </label>
-                        <input
-                          type="text"
-                          value={meetingLinkForm.meeting_password}
-                          onChange={(e) =>
-                            setMeetingLinkForm((prev) => ({
-                              ...prev,
-                              meeting_password: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="会议密码（如有）"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          其他信息
-                        </label>
-                        <textarea
-                          value={meetingLinkForm.additional_info}
-                          onChange={(e) =>
-                            setMeetingLinkForm((prev) => ({
-                              ...prev,
-                              additional_info: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="其他需要告知用户的信息"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-3 mt-6">
-                      <button
-                        onClick={() => {
-                          setShowMeetingLinkModal(false);
-                          setSelectedAppointment(null);
-                          setMeetingLinkForm({
-                            meeting_platform: "Zoom",
-                            meeting_url: "",
-                            meeting_id: "",
-                            meeting_password: "",
-                            additional_info: "",
-                          });
-                        }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        取消
-                      </button>
-                      <button
-                        onClick={handleAddMeetingLink}
-                        disabled={submitting}
-                        className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                          submitting
-                            ? "bg-gray-400 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700"
-                        }`}
-                      >
-                        {submitting ? "设置中..." : "设置会议链接"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -1685,6 +1537,155 @@ export default function AdminDashboard() {
                     }`}
                   >
                     {submitting ? "保存中..." : "保存设置"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMeetingLinkModal && selectedAppointment && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-[32rem] shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  设置会议链接
+                </h3>
+
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900">预约信息</h4>
+                  <p className="text-sm text-blue-700">
+                    主题：{selectedAppointment.topic}
+                  </p>
+                  <p className="text-sm text-blue-700">
+                    时间：{formatDate(selectedAppointment.appointment_date)}{" "}
+                    {formatTime(selectedAppointment.start_time)}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      会议平台 *
+                    </label>
+                    <select
+                      value={meetingLinkForm.meeting_platform}
+                      onChange={(e) =>
+                        setMeetingLinkForm((prev) => ({
+                          ...prev,
+                          meeting_platform: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="Zoom">Zoom</option>
+                      <option value="腾讯会议">腾讯会议</option>
+                      <option value="钉钉">钉钉</option>
+                      <option value="飞书">飞书</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      会议链接 *
+                    </label>
+                    <input
+                      type="url"
+                      value={meetingLinkForm.meeting_url}
+                      onChange={(e) =>
+                        setMeetingLinkForm((prev) => ({
+                          ...prev,
+                          meeting_url: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="请输入完整的会议链接"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      会议ID
+                    </label>
+                    <input
+                      type="text"
+                      value={meetingLinkForm.meeting_id}
+                      onChange={(e) =>
+                        setMeetingLinkForm((prev) => ({
+                          ...prev,
+                          meeting_id: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="会议ID（如有）"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      会议密码
+                    </label>
+                    <input
+                      type="text"
+                      value={meetingLinkForm.meeting_password}
+                      onChange={(e) =>
+                        setMeetingLinkForm((prev) => ({
+                          ...prev,
+                          meeting_password: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="会议密码（如有）"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      其他信息
+                    </label>
+                    <textarea
+                      value={meetingLinkForm.additional_info}
+                      onChange={(e) =>
+                        setMeetingLinkForm((prev) => ({
+                          ...prev,
+                          additional_info: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="其他需要告知用户的信息"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setShowMeetingLinkModal(false);
+                      setSelectedAppointment(null);
+                      setMeetingLinkForm({
+                        meeting_platform: "Zoom",
+                        meeting_url: "",
+                        meeting_id: "",
+                        meeting_password: "",
+                        additional_info: "",
+                      });
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleAddMeetingLink}
+                    disabled={submitting}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                      submitting
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                  >
+                    {submitting ? "设置中..." : "设置会议链接"}
                   </button>
                 </div>
               </div>

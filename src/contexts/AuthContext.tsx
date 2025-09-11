@@ -25,7 +25,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
     
     // Load initial user with timeout protection
     const loadUser = async () => {
@@ -53,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 设置最大等待时间，防止无限 loading
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       console.warn('用户加载超时，强制设置 loading = false')
       setLoading(false)
     }, 10000)
@@ -63,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+         const newUser = session?.user || null;
         setUser(session?.user || null)
         setLoading(false)
         // 清除超时定时器
