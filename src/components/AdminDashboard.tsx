@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { format, parseISO, addDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
 interface Counselor {
   id: string;
@@ -170,6 +171,55 @@ export default function AdminDashboard() {
     loadData();
   }, [navigate, loadData]);
 
+  useRealtimeTable({
+    table: "counselor_availability",
+    onInsert: (payload) => {
+      console.log("New availability inserted, reloading list...");
+      loadAvailabilities();
+    },
+    onUpdate: (payload) => {
+      // 当某个时间段被预约 (is_booked=true) 或信息被更新时
+      console.log("Availability updated:", payload.new);
+      setAvailabilities((prev) =>
+        prev.map((item) =>
+          item.id === payload.new.id
+            ? { ...item, ...payload.new } // 使用新数据更新旧条目
+            : item
+        )
+      );
+    },
+    onDelete: (payload) => {
+      // 当一个时间段被删除时
+      console.log("Availability deleted:", payload.old);
+      setAvailabilities((prev) =>
+        prev.filter((item) => item.id !== payload.old.id)
+      );
+    },
+  });
+
+  useRealtimeTable({
+    table: "appointments",
+    onInsert: (payload) => {
+      // 当有新的预约产生时，添加到列表顶部
+      console.log("New appointment inserted:", payload.new);
+      setAppointments((prev) => [payload.new, ...prev]);
+    },
+    onUpdate: (payload) => {
+      // 当预约状态或会议链接更新时
+      console.log("Appointment updated:", payload.new);
+      setAppointments((prev) =>
+        prev.map((item) => (item.id === payload.new.id ? payload.new : item))
+      );
+    },
+    onDelete: (payload) => {
+      // 当预约被删除时 (虽然不常见，但最好有)
+      console.log("Appointment deleted:", payload.old);
+      setAppointments((prev) =>
+        prev.filter((item) => item.id !== payload.old.id)
+      );
+    },
+  });
+
   const loadCounselors = async () => {
     const { data, error } = await supabase
       .from("counselors")
@@ -184,34 +234,19 @@ export default function AdminDashboard() {
   };
 
   const loadAvailabilities = async () => {
-    const { data, error } = await supabase
+    // 第一次查询：获取所有可用时间段
+    const { data: availabilityData, error: availabilityError } = await supabase
       .from("counselor_availability")
-      .select("*")
+      .select("*, counselor:counselors(*)") // 直接通过外键关联查询
       .order("availability_date", { ascending: true })
       .order("start_time", { ascending: true });
-
-    if (error) {
-      console.error("加载可用时间错误:", error);
-      throw error;
+      
+    if (availabilityError) {
+      console.error("加载可用时间错误:", availabilityError);
+      throw availabilityError;
     }
-
-    // 获取咨询师信息
-    const availabilitiesWithCounselors = await Promise.all(
-      (data || []).map(async (availability) => {
-        const { data: counselorData } = await supabase
-          .from("counselors")
-          .select("*")
-          .eq("id", availability.counselor_id)
-          .maybeSingle();
-
-        return {
-          ...availability,
-          counselor: counselorData,
-        };
-      })
-    );
-
-    setAvailabilities(availabilitiesWithCounselors);
+  
+    setAvailabilities(availabilityData || []);
   };
 
   const loadAppointments = async () => {
@@ -414,9 +449,8 @@ export default function AdminDashboard() {
         .eq("id", id);
 
       if (error) throw error;
-
-      setSuccess("时间段删除成功");
       await loadAvailabilities();
+      setSuccess("时间段删除成功");
     } catch (error: any) {
       setError(error.message || "删除失败，请稍后重试");
     }
