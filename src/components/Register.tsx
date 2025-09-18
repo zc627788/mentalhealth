@@ -1,12 +1,14 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import PhoneVerification from './PhoneVerification'
 
 interface RegisterFormData {
   name: string
   email: string
   password: string
   confirmPassword: string
+  phoneNumber: string
 }
 
 interface RegisterFormErrors {
@@ -14,20 +16,26 @@ interface RegisterFormErrors {
   email?: string
   password?: string
   confirmPassword?: string
+  phoneNumber?: string
   general?: string
 }
+
+type RegisterMode = 'email' | 'phone'
 
 export default function Register() {
   const [formData, setFormData] = useState<RegisterFormData>({
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    phoneNumber: ''
   })
   const [errors, setErrors] = useState<RegisterFormErrors>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
-  const { signUp } = useAuth()
+  const [registerMode, setRegisterMode] = useState<RegisterMode>('email')
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false)
+  const { signUp, sendSMSVerification } = useAuth()
   const navigate = useNavigate()
 
   const validateForm = (): boolean => {
@@ -42,29 +50,38 @@ export default function Register() {
       newErrors.name = '姓名过长（最多50个字符）'
     }
 
-    // Email validation
-    if (!formData.email.trim()) {
-      newErrors.email = '请输入邮箱地址'
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = '邮箱格式不正确'
-    } else if (formData.email.length > 254) {
-      newErrors.email = '邮箱地址过长（最多254个字符）'
-    }
+    if (registerMode === 'email') {
+      // Email validation
+      if (!formData.email.trim()) {
+        newErrors.email = '请输入邮箱地址'
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = '邮箱格式不正确'
+      } else if (formData.email.length > 254) {
+        newErrors.email = '邮箱地址过长（最多254个字符）'
+      }
 
-    // Password validation
-    if (!formData.password.trim()) {
-      newErrors.password = '请输入密码'
-    } else if (formData.password.length < 6) {
-      newErrors.password = '密码至少需要6个字符'
-    } else if (formData.password.length > 72) {
-      newErrors.password = '密码过长（最多72个字符）'
-    }
+      // Password validation
+      if (!formData.password.trim()) {
+        newErrors.password = '请输入密码'
+      } else if (formData.password.length < 6) {
+        newErrors.password = '密码至少需要6个字符'
+      } else if (formData.password.length > 72) {
+        newErrors.password = '密码过长（最多72个字符）'
+      }
 
-    // Confirm password validation
-    if (!formData.confirmPassword.trim()) {
-      newErrors.confirmPassword = '请确认密码'
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = '两次输入的密码不一致'
+      // Confirm password validation
+      if (!formData.confirmPassword.trim()) {
+        newErrors.confirmPassword = '请确认密码'
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = '两次输入的密码不一致'
+      }
+    } else {
+      // Phone validation
+      if (!formData.phoneNumber.trim()) {
+        newErrors.phoneNumber = '请输入手机号'
+      } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+        newErrors.phoneNumber = '手机号格式不正确'
+      }
     }
 
     setErrors(newErrors)
@@ -90,15 +107,26 @@ export default function Register() {
     setIsLoading(true)
 
     try {
-      const { error } = await signUp(formData.email, formData.password, formData.name)
-      
-      if (error) {
-        setErrors({ general: error })
+      if (registerMode === 'email') {
+        const { error } = await signUp(formData.email, formData.password, formData.name)
+        
+        if (error) {
+          setErrors({ general: error })
+        } else {
+          setIsSuccess(true)
+        }
       } else {
-        setIsSuccess(true)
+        // Phone registration - send SMS verification
+        const { error } = await sendSMSVerification(formData.phoneNumber, 'register')
+        
+        if (error) {
+          setErrors({ general: error })
+        } else {
+          setShowPhoneVerification(true)
+        }
       }
     } catch (error: any) {
-      setErrors({ general: '注册失败，请稍后重试' })
+      setErrors({ general: '操作失败，请稍后重试' })
     } finally {
       setIsLoading(false)
     }
@@ -112,6 +140,28 @@ export default function Register() {
     if (errors[name as keyof RegisterFormErrors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }))
     }
+  }
+
+  const handlePhoneVerificationSuccess = () => {
+    setIsSuccess(true)
+  }
+
+  const handleBackFromVerification = () => {
+    setShowPhoneVerification(false)
+    setErrors({})
+  }
+
+  // 如果显示手机号验证页面
+  if (showPhoneVerification) {
+    return (
+      <PhoneVerification
+        phoneNumber={formData.phoneNumber}
+        type="register"
+        onSuccess={handlePhoneVerificationSuccess}
+        onBack={handleBackFromVerification}
+        userName={formData.name}
+      />
+    )
   }
 
   if (isSuccess) {
@@ -151,6 +201,32 @@ export default function Register() {
           <p className="text-gray-600">开始您的心理健康之旅</p>
         </div>
 
+        {/* Register Mode Toggle */}
+        <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
+          <button
+            type="button"
+            onClick={() => setRegisterMode('email')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              registerMode === 'email'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            邮箱注册
+          </button>
+          <button
+            type="button"
+            onClick={() => setRegisterMode('phone')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              registerMode === 'phone'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            手机注册
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* General Error Message */}
           {errors.general && (
@@ -183,79 +259,110 @@ export default function Register() {
             )}
           </div>
 
-          {/* Email Field */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              邮箱地址
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="请输入邮箱地址"
-              maxLength={254}
-              required
-              disabled={isLoading}
-            />
-            {errors.email && (
-              <p className="text-red-600 text-xs mt-1">{errors.email}</p>
-            )}
-          </div>
+          {/* Email Registration Fields */}
+          {registerMode === 'email' && (
+            <>
+              {/* Email Field */}
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  邮箱地址
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="请输入邮箱地址"
+                  maxLength={254}
+                  required
+                  disabled={isLoading}
+                />
+                {errors.email && (
+                  <p className="text-red-600 text-xs mt-1">{errors.email}</p>
+                )}
+              </div>
 
-          {/* Password Field */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              密码
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="至少需要6个字符"
-              minLength={6}
-              maxLength={72}
-              required
-              disabled={isLoading}
-            />
-            {errors.password && (
-              <p className="text-red-600 text-xs mt-1">{errors.password}</p>
-            )}
-          </div>
+              {/* Password Field */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  密码
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="至少需要6个字符"
+                  minLength={6}
+                  maxLength={72}
+                  required
+                  disabled={isLoading}
+                />
+                {errors.password && (
+                  <p className="text-red-600 text-xs mt-1">{errors.password}</p>
+                )}
+              </div>
 
-          {/* Confirm Password Field */}
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              确认密码
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="请再次输入密码"
-              minLength={6}
-              maxLength={72}
-              required
-              disabled={isLoading}
-            />
-            {errors.confirmPassword && (
-              <p className="text-red-600 text-xs mt-1">{errors.confirmPassword}</p>
-            )}
-          </div>
+              {/* Confirm Password Field */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  确认密码
+                </label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="请再次输入密码"
+                  minLength={6}
+                  maxLength={72}
+                  required
+                  disabled={isLoading}
+                />
+                {errors.confirmPassword && (
+                  <p className="text-red-600 text-xs mt-1">{errors.confirmPassword}</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Phone Registration Field */}
+          {registerMode === 'phone' && (
+            <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                手机号
+              </label>
+              <input
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                  errors.phoneNumber ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
+                placeholder="请输入手机号"
+                maxLength={11}
+                required
+                disabled={isLoading}
+              />
+              {errors.phoneNumber && (
+                <p className="text-red-600 text-xs mt-1">{errors.phoneNumber}</p>
+              )}
+            </div>
+          )}
 
           {/* Submit Button */}
           <button
@@ -273,10 +380,10 @@ export default function Register() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                注册中...
+                {registerMode === 'phone' ? '发送验证码中...' : '注册中...'}
               </span>
             ) : (
-              '注册'
+              registerMode === 'phone' ? '获取验证码' : '注册'
             )}
           </button>
         </form>

@@ -7,6 +7,9 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>
+  signInWithPhone: (phoneNumber: string, verificationCode: string) => Promise<{ error: string | null }>
+  signUpWithPhone: (phoneNumber: string, verificationCode: string, name: string) => Promise<{ error: string | null }>
+  sendSMSVerification: (phoneNumber: string, type: 'register' | 'login') => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -117,11 +120,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
   }
 
+  // 发送短信验证码
+  const sendSMSVerification = async (phoneNumber: string, type: 'register' | 'login'): Promise<{ error: string | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-sms', {
+        body: { phoneNumber, type }
+      })
+
+      if (error) {
+        return { error: error.message || '发送验证码失败' }
+      }
+
+      if (data.error) {
+        return { error: data.error }
+      }
+
+      return { error: null }
+    } catch (error: any) {
+      return { error: error.message || '发送验证码失败' }
+    }
+  }
+
+  // 手机号注册
+  const signUpWithPhone = async (phoneNumber: string, verificationCode: string, name: string): Promise<{ error: string | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-sms', {
+        body: { phoneNumber, verificationCode, type: 'register', name }
+      })
+
+      if (error) {
+        return { error: error.message || '注册失败' }
+      }
+
+      if (data.error) {
+        return { error: data.error }
+      }
+
+      // 注册成功后，用户需要手动登录
+      return { error: null }
+    } catch (error: any) {
+      return { error: error.message || '注册失败' }
+    }
+  }
+
+  // 手机号登录
+  const signInWithPhone = async (phoneNumber: string, verificationCode: string): Promise<{ error: string | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-sms', {
+        body: { phoneNumber, verificationCode, type: 'login' }
+      })
+
+      if (error) {
+        return { error: error.message || '登录失败' }
+      }
+
+      if (data.error) {
+        return { error: data.error }
+      }
+
+      // 使用magic link登录
+      if (data.loginUrl) {
+        window.location.href = data.loginUrl
+        return { error: null }
+      }
+
+      return { error: '登录失败，请重试' }
+    } catch (error: any) {
+      return { error: error.message || '登录失败' }
+    }
+  }
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
+    signInWithPhone,
+    signUpWithPhone,
+    sendSMSVerification,
     signOut
   }
 
