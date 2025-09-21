@@ -1,14 +1,45 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useMyAccessType, queryKeys } from "@/hooks/useQueries";
+import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedAiService, setSelectedAiService] = useState<string>("");
+  const { data: myAccess = 'human_only' } = useMyAccessType()
+  const canDoubao = useMemo(() => myAccess === 'doubao_only', [myAccess])
+  const canPeppy = useMemo(() => myAccess === 'peppy_only', [myAccess])
+  const canHuman = useMemo(() => myAccess === 'human_only', [myAccess])
+
+  // 实时监听当前用户的 access_type 变化 → 立刻刷新 my-access 查询（不使用 filter，避免订阅过滤兼容性问题）
+  useRealtimeTable({
+    table: "user_access_policies",
+    onInsert: (payload) => {
+      console.log(11111)
+      if (payload?.new?.user_id && payload.new.user_id === user?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.myAccess(null) })
+      }
+    },
+    onUpdate: (payload) => {
+      console.log(22222)
+      if (payload?.new?.user_id && payload.new.user_id === user?.id) {
+       
+        queryClient.invalidateQueries({ queryKey: queryKeys.myAccess(null) })
+      }
+    },
+    onDelete: (payload) => {
+      if (payload?.old?.user_id && payload.old.user_id === user?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.myAccess(null) })
+      }
+    },
+  })
 
   const handleSignOut = async () => {
     setIsLoading(true);
@@ -92,6 +123,7 @@ export default function Dashboard() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 智心助手(豆包) */}
+            {canDoubao && (
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center mb-4">
                 <div className="bg-blue-100 p-3 rounded-full">
@@ -129,8 +161,10 @@ export default function Dashboard() {
                 开始对话
               </button>
             </div>
+            )}
 
             {/* Peppy助手 */}
+            {canPeppy && (
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center mb-4">
                 <div className="bg-purple-100 p-3 rounded-full">
@@ -168,6 +202,7 @@ export default function Dashboard() {
                 开始对话
               </button>
             </div>
+            )}
           </div>
         </div>
 
@@ -178,6 +213,7 @@ export default function Dashboard() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 专业咨询师 */}
+            {canHuman && (
             <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-center mb-4">
                 <div className="bg-green-100 p-3 rounded-full">
@@ -215,6 +251,7 @@ export default function Dashboard() {
                 预约咨询师
               </button>
             </div>
+            )}
           </div>
         </div>
 

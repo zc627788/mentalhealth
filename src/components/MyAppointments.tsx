@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
+import { useUserAppointments } from '../hooks/useQueries'
 
 interface Appointment {
   id: number
@@ -20,35 +20,8 @@ interface Appointment {
 
 const MyAppointments: React.FC = () => {
   const { user } = useAuth()
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: appointments = [], isLoading: loading } = useUserAppointments(user?.id || '')
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all')
-
-  useEffect(() => {
-    if (user) {
-      fetchAppointments()
-    }
-  }, [user])
-
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('appointment_date', { ascending: false })
-        .order('start_time', { ascending: false })
-
-      if (error) throw error
-
-      setAppointments(data || [])
-    } catch (error) {
-      console.error('获取预约历史失败:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {

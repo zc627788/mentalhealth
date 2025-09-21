@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { format, parseISO, addDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+import AdminPeople from "./AdminPeople";
 
 interface Counselor {
   id: string;
@@ -67,7 +68,12 @@ export default function AdminDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const [activeTab, setActiveTab] = useState<
-    "counselors" | "availability" | "appointments" | "meetings" | "settings"
+    | "counselors"
+    | "availability"
+    | "appointments"
+    | "meetings"
+    | "settings"
+    | "people"
   >("counselors");
   const [loading, setLoading] = useState(true);
 
@@ -162,13 +168,36 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    const adminData = sessionStorage.getItem("admin_user");
-    if (!adminData) {
-      navigate("/admin");
-      return;
-    }
-    setAdminUser(JSON.parse(adminData));
-    loadData();
+    const verifyAndLoad = async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const accessToken = sess?.session?.access_token;
+        if (!accessToken) {
+          navigate("/admin");
+          return;
+        }
+        setAdminUser(sess?.session?.user.user_metadata as AdminUser);
+
+        // 调用任一 admin 函数以校验是否管理员
+        const { data, error } = await supabase.functions.invoke("admin-users", {
+          body: { page: 1, pageSize: 1 },
+        });
+        if (
+          error ||
+          (data && (data.success === false || (data as any).error))
+        ) {
+          navigate("/admin");
+          return;
+        }
+        // 通过校验后加载数据
+        loadData();
+      } catch (e) {
+        console.error("管理员校验失败:", e);
+        navigate("/admin");
+      }
+    };
+
+    verifyAndLoad();
   }, [navigate, loadData]);
 
   useRealtimeTable({
@@ -240,12 +269,12 @@ export default function AdminDashboard() {
       .select("*, counselor:counselors(*)") // 直接通过外键关联查询
       .order("availability_date", { ascending: true })
       .order("start_time", { ascending: true });
-      
+
     if (availabilityError) {
       console.error("加载可用时间错误:", availabilityError);
       throw availabilityError;
     }
-  
+
     setAvailabilities(availabilityData || []);
   };
 
@@ -289,8 +318,8 @@ export default function AdminDashboard() {
 
   // 移除 meeting_links 表的依赖，直接使用 appointments 表的 meeting_link 字段
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("admin_user");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate("/admin");
   };
 
@@ -699,7 +728,7 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                欢迎，{adminUser?.name || adminUser?.email}
+                欢迎，{adminUser?.email}
               </span>
               <button
                 onClick={handleLogout}
@@ -723,6 +752,7 @@ export default function AdminDashboard() {
                 { id: "appointments", name: "预约管理" },
                 { id: "meetings", name: "会议链接" },
                 { id: "settings", name: "系统设置" },
+                { id: "people", name: "人员管理" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1575,6 +1605,12 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "people" && (
+          <div className="p-0">
+            <AdminPeople />
           </div>
         )}
 

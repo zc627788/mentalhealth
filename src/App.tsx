@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { QueryProvider } from "./lib/queryClient";
 
 import Login from "./components/Login";
 import Register from "./components/Register";
@@ -18,6 +19,8 @@ import MyAppointments from "./components/MyAppointments";
 import AuthCallback from "./components/AuthCallback";
 import AdminLogin from "./components/AdminLogin";
 import AdminDashboard from "./components/AdminDashboard";
+import AdminChatViewer from "./components/AdminChatViewer";
+import AdminPeople from "./components/AdminPeople";
 import "./App.css";
 import { supabase } from "./lib/supabase";
 
@@ -29,7 +32,12 @@ function RootRedirect() {
   const [debugInfo, setDebugInfo] = useState<string>("");
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    const timeoutId: NodeJS.Timeout = setTimeout(() => {
+      console.warn("RootRedirect 超时，默认跳转到预约页面");
+      setDebugInfo("超时，使用默认跳转");
+      setRedirectPath("/appointment");
+      setIsChecking(false);
+    }, 15000);
 
     const checkRedirectPath = async () => {
       setDebugInfo(
@@ -85,14 +93,6 @@ function RootRedirect() {
       }
     };
 
-    // 设置最大等待时间
-    timeoutId = setTimeout(() => {
-      console.warn("RootRedirect 超时，默认跳转到预约页面");
-      setDebugInfo("超时，使用默认跳转");
-      setRedirectPath("/appointment");
-      setIsChecking(false);
-    }, 15000);
-
     checkRedirectPath();
 
     return () => {
@@ -145,6 +145,7 @@ function ProtectedRoute({
       // 对需要检查的路径进行检查
       if (["/chat-doubao", "/chat-peppy", "/dashboard"].includes(path || "")) {
         setIsChecking(true);
+        console.log(131313123)
 
         try {
           // 检查AI服务预约设置
@@ -351,6 +352,8 @@ function AppRoutes() {
         {/* Admin Routes (Public - no auth required) */}
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/people" element={<AdminPeople />} />
+        <Route path="/admin/chat-viewer" element={<AdminChatViewer />} />
 
         {/* Catch all - redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -361,9 +364,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <QueryProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </QueryProvider>
   );
 }
 

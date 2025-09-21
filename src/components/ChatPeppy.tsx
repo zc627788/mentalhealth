@@ -356,7 +356,7 @@ export default function ChatPeppy() {
         await chatStorage.saveMessage(
           newUserMessage,
           aiModel,
-          isAppointmentActive,
+          isAppointmentMode,
           currentAppointmentId || undefined
         );
       } catch (error) {
@@ -406,7 +406,7 @@ export default function ChatPeppy() {
           await chatStorage.saveMessage(
             finalAIMessage,
             aiModel,
-            isAppointmentActive,
+            isAppointmentMode,
             currentAppointmentId || undefined
           );
         } catch (error) {
@@ -451,7 +451,7 @@ export default function ChatPeppy() {
       // 清空当前会话的消息（保留会话）
       await chatStorage.clearCurrentSessionMessages(
         aiModel,
-        isAppointmentActive,
+        isAppointmentMode,
         currentAppointmentId || undefined
       );
 
@@ -548,7 +548,7 @@ export default function ChatPeppy() {
       // 创建新会话
       const newSessionId = await chatStorage.createNewSession(
         aiModel,
-        isAppointmentActive,
+        isAppointmentMode,
         currentAppointmentId || undefined
       );
       setCurrentSessionId(newSessionId);

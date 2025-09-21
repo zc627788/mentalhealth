@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import PhoneVerification from './PhoneVerification'
 
+
+
 interface RegisterFormData {
   name: string
   email: string

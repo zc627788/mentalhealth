@@ -291,12 +291,12 @@ export default function ChatDoubao() {
     ]);
 
     // 保存到数据库和本地存储
-    if (chatStorage) {
+      if (chatStorage) {
       try {
         await chatStorage.saveMessage(
           newUserMessage,
           aiModel,
-          isAppointmentActive,
+            isAppointmentMode,
           currentAppointmentId || undefined
         );
       } catch (error) {
@@ -351,7 +351,7 @@ export default function ChatDoubao() {
         await chatStorage.saveMessage(
           finalAIMessage,
           aiModel,
-          isAppointmentActive,
+          isAppointmentMode,
           currentAppointmentId || undefined
         );
       }
@@ -388,7 +388,7 @@ export default function ChatDoubao() {
       // 清空当前会话的消息（保留会话）
       await chatStorage.clearCurrentSessionMessages(
         aiModel,
-        isAppointmentActive,
+        isAppointmentMode,
         currentAppointmentId || undefined
       );
 

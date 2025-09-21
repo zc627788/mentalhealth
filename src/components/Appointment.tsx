@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import { format, parseISO, isAfter, startOfDay } from "date-fns";
-import { zhCN } from "date-fns/locale";
+import { id, zhCN } from "date-fns/locale";
 import { useRealtimeTable } from "../hooks/useRealtimeTable";
 
 interface Counselor {
@@ -162,6 +162,28 @@ export default function Appointment() {
     },
   });
 
+  // 实时监听用户访问权限变化
+  useRealtimeTable({
+    table: "user_access_policies",
+    onUpdate: (payload) => {
+      // 当用户的 access_type 发生变化时，重新加载可用时间段
+      if (payload.new.user_id === user?.id) {
+        // 清除当前选择的时间段，因为可能不再有权限预约
+        setSelectedAvailability(null);
+        setFormData({
+          availability_id: "",
+          topic: "",
+          description: "",
+          urgency: "medium",
+        });
+        setError("");
+        setSuccess("您的访问权限已更新，正在刷新可用预约选项...");
+        // 重新加载可用时间段
+        loadAvailableSlots();
+      }
+    },
+  });
+
   const loadAvailableSlots = useCallback(async () => {
     try {
       const now = new Date();
@@ -205,14 +227,45 @@ export default function Appointment() {
         userAppointmentsData?.map((apt) => apt.availability_id) || []
       );
 
-      // 过滤掉当前用户已预约的时间段
-      const filteredAvailabilityData = validAvailabilityData.filter(
-        (availability) => !userBookedAvailabilityIds.has(availability.id)
-      );
+       // 获取用户的访问权限
+       const { data: userAccessPolicy } = await supabase
+         .from('user_access_policies')
+         .select('access_type')
+         .eq('user_id', user?.id)
+         .maybeSingle();
+       
+       const userAccessType = userAccessPolicy?.access_type || 'human_only';
+
+       // 过滤掉当前用户已预约的时间段
+       const filteredAvailabilityData = validAvailabilityData.filter(
+         (availability) => !userBookedAvailabilityIds.has(availability.id)
+       );
+
+       // 根据用户 access_type 过滤可用时间段
+       const accessFilteredData = filteredAvailabilityData.filter((availability) => {
+         // 如果是人工咨询师时间段
+         if (availability.counselor_type === 'human' || !availability.counselor_type) {
+           return userAccessType === 'human_only';
+         }
+         
+         // 如果是 AI 咨询师时间段
+         if (availability.counselor_type === 'ai') {
+           if (userAccessType === 'doubao_only') {
+             return availability.ai_model === 'doubao';
+           }
+           if (userAccessType === 'peppy_only') {
+             return availability.ai_model === 'peppy';
+           }
+           // human_only 用户不能预约 AI 咨询
+           return false;
+         }
+         
+         return false;
+       });
 
       // 获取咨询师信息
       const counselorIds = [
-        ...new Set(filteredAvailabilityData.map((item) => item.counselor_id)),
+        ...new Set(accessFilteredData.map((item) => item.counselor_id)),
       ];
       const { data: counselorData, error: counselorError } = await supabase
         .from("counselors")
@@ -225,7 +278,7 @@ export default function Appointment() {
       }
 
       // 合并数据
-      const availabilitiesWithCounselors = filteredAvailabilityData
+      const availabilitiesWithCounselors = accessFilteredData
         .map((availability) => {
           const counselor = counselorData?.find(
             (c) => c.id === availability.counselor_id
@@ -316,7 +369,7 @@ export default function Appointment() {
       console.error("加载用户预约错误:", error);
       throw error;
     }
-  }, [user?.id]);
+  }, [user]);
 
   const loadAiAppointmentSetting = useCallback(async () => {
     try {
