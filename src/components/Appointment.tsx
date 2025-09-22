@@ -177,7 +177,7 @@ export default function Appointment() {
           urgency: "medium",
         });
         setError("");
-        setSuccess("您的访问权限已更新，正在刷新可用预约选项...");
+        setSuccess("您的访问权限已更新，如未自动刷新，请手动刷新可用预约选项...");
         // 重新加载可用时间段
         loadAvailableSlots();
       }
