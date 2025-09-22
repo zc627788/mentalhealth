@@ -27,18 +27,6 @@ export default function AdminPeople() {
   });
   const users = (data as any)?.users || (data as any)?.items || [];
 
-  // 进入人员管理页时强制刷新一次
-  // useEffect(() => {
-  //   refetch()
-  // }, [refetch])
-
-  // 聚焦窗口时刷新，保证回到页面数据为最新
-  // useEffect(() => {
-  //   const onFocus = () => refetch()
-  //   window.addEventListener('focus', onFocus)
-  //   return () => window.removeEventListener('focus', onFocus)
-  // }, [refetch])
-
   const [modalUserId, setModalUserId] = useState<string | null>(null);
   const [modalUserName, setModalUserName] = useState<string>("");
 

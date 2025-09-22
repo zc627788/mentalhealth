@@ -177,7 +177,9 @@ export default function Appointment() {
           urgency: "medium",
         });
         setError("");
-        setSuccess("您的访问权限已更新，如未自动刷新，请手动刷新可用预约选项...");
+        setSuccess(
+          "您的访问权限已更新，如未自动刷新，请手动刷新可用预约选项..."
+        );
         // 重新加载可用时间段
         loadAvailableSlots();
       }
@@ -227,41 +229,46 @@ export default function Appointment() {
         userAppointmentsData?.map((apt) => apt.availability_id) || []
       );
 
-       // 获取用户的访问权限
-       const { data: userAccessPolicy } = await supabase
-         .from('user_access_policies')
-         .select('access_type')
-         .eq('user_id', user?.id)
-         .maybeSingle();
-       
-       const userAccessType = userAccessPolicy?.access_type || 'human_only';
+      // 获取用户的访问权限
+      const { data: userAccessPolicy } = await supabase
+        .from("user_access_policies")
+        .select("access_type")
+        .eq("user_id", user?.id)
+        .maybeSingle();
 
-       // 过滤掉当前用户已预约的时间段
-       const filteredAvailabilityData = validAvailabilityData.filter(
-         (availability) => !userBookedAvailabilityIds.has(availability.id)
-       );
+      const userAccessType = userAccessPolicy?.access_type || "human_only";
 
-       // 根据用户 access_type 过滤可用时间段
-       const accessFilteredData = filteredAvailabilityData.filter((availability) => {
-         // 如果是人工咨询师时间段
-         if (availability.counselor_type === 'human' || !availability.counselor_type) {
-           return userAccessType === 'human_only';
-         }
-         
-         // 如果是 AI 咨询师时间段
-         if (availability.counselor_type === 'ai') {
-           if (userAccessType === 'doubao_only') {
-             return availability.ai_model === 'doubao';
-           }
-           if (userAccessType === 'peppy_only') {
-             return availability.ai_model === 'peppy';
-           }
-           // human_only 用户不能预约 AI 咨询
-           return false;
-         }
-         
-         return false;
-       });
+      // 过滤掉当前用户已预约的时间段
+      const filteredAvailabilityData = validAvailabilityData.filter(
+        (availability) => !userBookedAvailabilityIds.has(availability.id)
+      );
+
+      // 根据用户 access_type 过滤可用时间段
+      const accessFilteredData = filteredAvailabilityData.filter(
+        (availability) => {
+          // 如果是人工咨询师时间段
+          if (
+            availability.counselor_type === "human" ||
+            !availability.counselor_type
+          ) {
+            return userAccessType === "human_only";
+          }
+
+          // 如果是 AI 咨询师时间段
+          if (availability.counselor_type === "ai") {
+            if (userAccessType === "doubao_only") {
+              return availability.ai_model === "doubao";
+            }
+            if (userAccessType === "peppy_only") {
+              return availability.ai_model === "peppy";
+            }
+            // human_only 用户不能预约 AI 咨询
+            return false;
+          }
+
+          return false;
+        }
+      );
 
       // 获取咨询师信息
       const counselorIds = [
@@ -406,10 +413,11 @@ export default function Appointment() {
   // 处理AI服务进入
   const handleAiServiceEntry = async (appointment: UserAppointment) => {
     const needsAppointment = await checkAiServicesSetting();
-    
+
     if (needsAppointment) {
       // 需要预约，直接进入
-      const destination = appointment.ai_model === "doubao" ? "/chat-doubao" : "/chat-peppy";
+      const destination =
+        appointment.ai_model === "doubao" ? "/chat-doubao" : "/chat-peppy";
       navigate(destination, { state: { appointment } });
     } else {
       // 不需要预约，显示弹窗
@@ -619,7 +627,12 @@ export default function Appointment() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">欢迎，{user?.email}</span>
+              <span className="text-sm text-gray-600">
+                欢迎，
+                {user.email.includes("temp.local")
+                  ? user.email.replace("@temp.local", "")
+                  : user?.email}
+              </span>
               <button
                 onClick={handleSignOut}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
@@ -998,7 +1011,9 @@ export default function Appointment() {
 
                               return (
                                 <button
-                                  onClick={() => handleAiServiceEntry(appointment)}
+                                  onClick={() =>
+                                    handleAiServiceEntry(appointment)
+                                  }
                                   disabled={!isTimeReached}
                                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     isTimeReached

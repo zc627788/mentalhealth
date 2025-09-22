@@ -291,12 +291,12 @@ export default function ChatDoubao() {
     ]);
 
     // 保存到数据库和本地存储
-      if (chatStorage) {
+    if (chatStorage) {
       try {
         await chatStorage.saveMessage(
           newUserMessage,
           aiModel,
-            isAppointmentMode,
+          isAppointmentMode,
           currentAppointmentId || undefined
         );
       } catch (error) {
@@ -598,7 +598,9 @@ export default function ChatDoubao() {
                   清空当前对话
                 </button>
                 <span className="text-sm text-gray-700">
-                  {user?.user_metadata?.name || user?.email}
+                  {user.email.includes("temp.local")
+                    ? user.email.replace("@temp.local", "")
+                    : user?.email}
                 </span>
                 <button
                   onClick={handleSignOut}

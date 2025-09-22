@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import PhoneVerification from './PhoneVerification'
+import { useSendSMSCode, useVerifySMSCode } from '@/hooks/useSms'
+import { supabase } from '@/lib/supabase'
 
 
 
@@ -36,9 +37,26 @@ export default function Register() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [registerMode, setRegisterMode] = useState<RegisterMode>('email')
-  const [showPhoneVerification, setShowPhoneVerification] = useState(false)
-  const { signUp, sendSMSVerification } = useAuth()
+  // 验证码内联
+  const [verificationCode, setVerificationCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [canResend, setCanResend] = useState(true)
+  const [smsTip, setSmsTip] = useState('')
+  const { signUp } = useAuth()
+  const sendSms = useSendSMSCode()
+  const verifySms = useVerifySMSCode()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (countdown > 0) {
+      setCanResend(false)
+      const t = setTimeout(() => setCountdown((s) => s - 1), 1000)
+      return () => clearTimeout(t)
+    } else {
+      setCanResend(true)
+    }
+  }, [countdown])
 
   const validateForm = (): boolean => {
     const newErrors: RegisterFormErrors = {}
@@ -84,6 +102,9 @@ export default function Register() {
       } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
         newErrors.phoneNumber = '手机号格式不正确'
       }
+      if (!verificationCode.trim()) {
+        newErrors.general = '请输入短信验证码'
+      }
     }
 
     setErrors(newErrors)
@@ -118,13 +139,23 @@ export default function Register() {
           setIsSuccess(true)
         }
       } else {
-        // Phone registration - send SMS verification
-        const { error } = await sendSMSVerification(formData.phoneNumber, 'register')
-        
-        if (error) {
-          setErrors({ general: error })
-        } else {
-          setShowPhoneVerification(true)
+        // 验证并注册（hook）
+        try {
+          const result = await verifySms.mutateAsync({
+            phoneNumber: formData.phoneNumber,
+            code: verificationCode,
+            type: 'register',
+            name: formData.name,
+          })
+          // 如果后端返回 loginUrl，直接跳转，完成会话建立
+          if ((result as any)?.loginUrl) {
+            window.location.href = (result as any).loginUrl
+            return
+          }
+          // 兜底：没有返回链接则跳转登录页
+          navigate('/login')
+        } catch (e: any) {
+          setErrors({ general: e?.message || '验证码验证失败' })
         }
       }
     } catch (error: any) {
@@ -144,27 +175,32 @@ export default function Register() {
     }
   }
 
-  const handlePhoneVerificationSuccess = () => {
-    setIsSuccess(true)
-  }
-
-  const handleBackFromVerification = () => {
-    setShowPhoneVerification(false)
+  const handleSendCode = async () => {
     setErrors({})
+    if (!formData.phoneNumber || !/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+      setErrors({ phoneNumber: '请输入正确的手机号' })
+      return
+    }
+    if (!formData.name.trim()) {
+      setErrors({ name: '请输入姓名' })
+      return
+    }
+    if (!canResend) return
+    setIsLoading(true)
+    try {
+      const res = await sendSms.mutateAsync({ phoneNumber: formData.phoneNumber, cooldownSeconds: 60 })
+      setCodeSent(true)
+      setSmsTip((res as any)?.message || '验证码已发送')
+      setCountdown(60)
+    } catch (e: any) {
+      setErrors({ general: e?.message || '发送失败，请稍后重试' })
+      setSmsTip('')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  // 如果显示手机号验证页面
-  if (showPhoneVerification) {
-    return (
-      <PhoneVerification
-        phoneNumber={formData.phoneNumber}
-        type="register"
-        onSuccess={handlePhoneVerificationSuccess}
-        onBack={handleBackFromVerification}
-        userName={formData.name}
-      />
-    )
-  }
+  // 移除独立验证页，内联验证码
 
   if (isSuccess) {
     return (
@@ -287,6 +323,9 @@ export default function Register() {
                   <p className="text-red-600 text-xs mt-1">{errors.email}</p>
                 )}
               </div>
+              {smsTip && (
+                <div className="text-xs text-blue-600 mt-1">{smsTip}</div>
+              )}
 
               {/* Password Field */}
               <div>
@@ -342,28 +381,61 @@ export default function Register() {
 
           {/* Phone Registration Field */}
           {registerMode === 'phone' && (
-            <div>
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                手机号
-              </label>
-              <input
-                type="tel"
-                id="phoneNumber"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.phoneNumber ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="请输入手机号"
-                maxLength={11}
-                required
-                disabled={isLoading}
-              />
-              {errors.phoneNumber && (
-                <p className="text-red-600 text-xs mt-1">{errors.phoneNumber}</p>
-              )}
-            </div>
+            <>
+              <div>
+                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                  手机号
+                </label>
+                <input
+                  type="tel"
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    errors.phoneNumber ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="请输入手机号"
+                  maxLength={11}
+                  required
+                  disabled={isLoading}
+                />
+                {errors.phoneNumber && (
+                  <p className="text-red-600 text-xs mt-1">{errors.phoneNumber}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-700 mb-1">
+                  短信验证码
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    id="verificationCode"
+                    name="verificationCode"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors  tracking-widest ${
+                      errors.general ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    placeholder="请输入6位验证码"
+                    maxLength={6}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={isLoading || !canResend}
+                    className={`px-3 py-2 rounded-md text-sm whitespace-nowrap ${
+                      isLoading || !canResend ? 'bg-gray-200 text-gray-500' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    }`}
+                  >
+                    {codeSent ? (countdown > 0 ? `${countdown}s 后重发` : '重新发送') : '获取验证码'}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           {/* Submit Button */}
@@ -382,10 +454,10 @@ export default function Register() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {registerMode === 'phone' ? '发送验证码中...' : '注册中...'}
+                注册中...
               </span>
             ) : (
-              registerMode === 'phone' ? '获取验证码' : '注册'
+              '注册'
             )}
           </button>
         </form>

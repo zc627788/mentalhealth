@@ -252,7 +252,6 @@ export default function ChatPeppy() {
     onChunk: (chunk: string) => void
   ): Promise<void> => {
     try {
-
       // 先尝试流式输出
       const response = await fetch(
         `${supabaseUrl}/functions/v1/peppy-chat-stream`,
@@ -269,7 +268,6 @@ export default function ChatPeppy() {
           }),
         }
       );
-
 
       if (!response.ok) {
         console.error("响应错误:", response.status, response.statusText);
@@ -658,7 +656,9 @@ export default function ChatPeppy() {
                   清空当前对话
                 </button>
                 <span className="text-sm text-gray-700">
-                  {user?.user_metadata?.name || user?.email}
+                  {user.email.includes("temp.local")
+                    ? user.email.replace("@temp.local", "")
+                    : user?.email}
                 </span>
                 <button
                   onClick={handleSignOut}
