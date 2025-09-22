@@ -50,7 +50,10 @@ export default function AdminLogin() {
           body: { page: 1, pageSize: 1 },
         }
       );
-      console.log("🚀 ~ file: AdminLogin.tsx:48 ~ adminCheckError:", adminCheckError)
+      console.log(
+        "🚀 ~ file: AdminLogin.tsx:48 ~ adminCheckError:",
+        adminCheckError
+      );
 
       if (adminCheckError) {
         // 非管理员，登出并提示
@@ -176,15 +179,6 @@ export default function AdminLogin() {
                 返回用户端
               </button>
             </div>
-          </div>
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-xs text-blue-800">
-              <strong>演示账号：</strong>
-              <br />
-              邮箱：zc627788@gmail.com
-              <br />
-              密码：123456
-            </p>
           </div>
         </div>
       </div>
