@@ -129,9 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ error: string | null }> => {
     try {
       // 使用手机号 + 密码登录
-      // 注意：Supabase 默认使用邮箱登录，这里需要使用 phone 登录
+      // 由于用户是用 temp email 创建的，需要使用 email 登录
       const { error } = await supabase.auth.signInWithPassword({
-        phone: phoneNumber,
+        email: `${phoneNumber}@temp.local`,
         password,
       });
       if (error) {
