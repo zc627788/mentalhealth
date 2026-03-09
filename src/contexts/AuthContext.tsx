@@ -172,7 +172,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     phoneNumber: string,
     password: string,
     verificationCode: string,
-    name: string
+    name: string,
+    randomId?: string
   ): Promise<{ error: string | null }> => {
     try {
       // 调用 Edge Function 完成手机号 + 密码 + 验证码注册
@@ -183,7 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           verificationCode,
           type: 'register',
           name,
-          password // 传递密码用于设置
+          password, // 传递密码用于设置
+          randomId // 传递随机 ID，在创建用户成功后标记为已使用
         }
       })
 

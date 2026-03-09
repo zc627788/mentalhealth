@@ -176,7 +176,8 @@ export default function Register() {
         formData.phoneNumber,
         formData.password,
         verificationCode,
-        formData.name
+        formData.name,
+        formData.randomId // 传递随机 ID，由服务端在创建用户成功后标记为已使用
       )
 
       if (result.error) {
@@ -184,22 +185,11 @@ export default function Register() {
         return
       }
 
-      // 注册成功后，标记随机 ID 为已使用
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await supabase.functions.invoke('mark-random-id-used', {
-          body: { 
-            code: formData.randomId.trim().toUpperCase(),
-            userId: user.id 
-          }
-        })
-      }
-
       // 注册成功，跳转到登录页
-      navigate('/login', { 
-        state: { 
-          message: '注册成功！请使用手机号和密码登录' 
-        } 
+      navigate('/login', {
+        state: {
+          message: '注册成功！请使用手机号和密码登录'
+        }
       })
     } catch (e: any) {
       setErrors({ general: e?.message || '注册失败，请稍后重试' })

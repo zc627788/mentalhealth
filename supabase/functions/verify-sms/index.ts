@@ -8,6 +8,7 @@ interface VerifySMSPayload {
   type?: 'register' | 'login';
   name?: string;
   password?: string;
+  randomId?: string;
 }
 
 interface VerifySMSResponse {
@@ -154,6 +155,28 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: '注册成功但生成登录链接失败' }), {
           status: 500, headers: corsHeaders
         })
+      }
+
+      // 如果传入了 randomId，标记为已使用并记录用户 ID
+      if (randomId) {
+        const normalizedCode = randomId.trim().toUpperCase()
+        const { error: markRandomIdError } = await supabaseClient
+          .from('random_ids')
+          .update({
+            is_used: true,
+            user_id: authData.user.id,
+            used_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('code', normalizedCode)
+          .eq('is_used', false)
+
+        if (markRandomIdError) {
+          console.error('标记随机 ID 失败:', markRandomIdError)
+          // 不影响主流程，只记录日志
+        } else {
+          console.log(`随机 ID ${normalizedCode} 已标记为已使用，用户 ID: ${authData.user.id}`)
+        }
       }
 
       return new Response(JSON.stringify({
