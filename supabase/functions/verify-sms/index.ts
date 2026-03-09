@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { phoneNumber, verificationCode, type = 'register', name, password }: VerifySMSPayload = await req.json()
+    const { phoneNumber, verificationCode, type = 'register', name, password, randomId }: VerifySMSPayload = await req.json()
 
     if (!phoneNumber || !verificationCode) {
       return new Response(JSON.stringify({ error: '手机号和验证码不能为空' }), {

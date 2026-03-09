@@ -32,6 +32,7 @@ Deno.serve(async (req: Request) => {
       verificationCode,
       type = "register",
       name,
+      randomId,
     } = await req.json();
 
     // 验证输入参数

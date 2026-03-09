@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: '随机 ID 格式不正确，应为 5 位字母或数字' 
+          message: 'ID 格式不正确，应为 5 位字母或数字' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )

@@ -293,7 +293,7 @@ export default function Register() {
           {/* Random ID Field */}
           <div>
             <label htmlFor="randomId" className="block text-sm font-medium text-gray-700 mb-1">
-              随机 ID
+              资格 ID
               <span className="text-gray-500 text-xs ml-2">(必填，5 位字母或数字)</span>
             </label>
             <div className="flex gap-2">
@@ -470,7 +470,7 @@ export default function Register() {
           {/* Help Text */}
           <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
             <p className="text-blue-800 text-xs">
-              <strong>说明：</strong>注册时需要验证手机号，注册后可使用 <strong>手机号 + 密码</strong> 或 <strong>手机号 + 验证码</strong> 登录
+              <strong>说明：</strong>注册需要先<strong>验证资格ID</strong>, 然后才能点击<strong>获取验证码</strong>
             </p>
           </div>
         </form>

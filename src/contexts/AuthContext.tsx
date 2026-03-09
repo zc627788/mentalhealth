@@ -27,7 +27,8 @@ interface AuthContextType {
     phoneNumber: string,
     password: string,
     verificationCode: string,
-    name: string
+    name: string,
+    randomId?: string
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
