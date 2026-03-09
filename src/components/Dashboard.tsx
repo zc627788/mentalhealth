@@ -16,8 +16,8 @@ export default function Dashboard() {
   const [selectedAiService, setSelectedAiService] = useState<string>("");
   const { data: myAccess = "human_only" } = useMyAccessType();
   const canDoubao = useMemo(() => myAccess === "doubao_only", [myAccess]);
-  const canPeppy = useMemo(() => myAccess === "peppy_only", [myAccess]);
-  const canHuman = useMemo(() => myAccess === "human_only", [myAccess]);
+  // const canPeppy = useMemo(() => myAccess === "peppy_only", [myAccess]); // 暂时隐藏 Peppy
+  // const canHuman = useMemo(() => myAccess === "human_only", [myAccess]); // 暂时隐藏人工咨询
 
   // 实时监听当前用户的 access_type 变化 → 立刻刷新 my-access 查询（不使用 filter，避免订阅过滤兼容性问题）
   useRealtimeTable({
@@ -53,7 +53,7 @@ export default function Dashboard() {
     }
   };
 
-  // 检查AI服务是否需要预约
+  // 检查 AI 服务是否需要预约
   const checkAiServicesSetting = async () => {
     try {
       const { data } = await supabase
@@ -64,12 +64,12 @@ export default function Dashboard() {
 
       return data?.setting_value === "true";
     } catch (error) {
-      console.error("获取AI服务设置失败:", error);
+      console.error("获取 AI 服务设置失败:", error);
       return false;
     }
   };
 
-  // 处理AI服务点击
+  // 处理 AI 服务点击
   const handleAiServiceClick = async (
     serviceName: string,
     servicePath: string
@@ -125,10 +125,10 @@ export default function Dashboard() {
         {/* AI Services Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            AI心理陪伴服务
+            AI 心理陪伴服务
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 智心助手(豆包) */}
+            {/* 智心助手 (豆包) */}
             {canDoubao && (
               <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-center mb-4">
@@ -149,20 +149,20 @@ export default function Dashboard() {
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">
-                      智心助手(豆包)
+                      智心助手 (豆包)
                     </h3>
-                    <p className="text-sm text-blue-600">AI心理陪伴</p>
+                    <p className="text-sm text-blue-600">AI 心理陪伴</p>
                   </div>
                 </div>
                 <p className="text-gray-600 text-sm mb-4">
-                  基于豆包大模型的温暖治愈对话服务，24/7在线陪伴，提供专业的心理支持和建议。
+                  基于豆包大模型的温暖治愈对话服务，24/7 在线陪伴，提供专业的心理支持和建议。
                 </p>
                 <div className="text-xs text-blue-600 mb-3">
                   ✨ 豆包大模型 | 温暖陪伴
                 </div>
                 <button
                   onClick={() =>
-                    handleAiServiceClick("智心助手(豆包)", "/chat-doubao")
+                    handleAiServiceClick("智心助手 (豆包)", "/chat-doubao")
                   }
                   className="w-full py-2 px-4 rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700"
                 >
@@ -171,8 +171,8 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Peppy助手 */}
-            {canPeppy && (
+            {/* Peppy 助手 - 暂时隐藏，保留功能供日后使用 */}
+            {/* {false && (
               <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-center mb-4">
                   <div className="bg-purple-100 p-3 rounded-full">
@@ -192,38 +192,38 @@ export default function Dashboard() {
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">
-                      Peppy助手
+                      Peppy 助手
                     </h3>
-                    <p className="text-sm text-purple-600">AI心理陪伴</p>
+                    <p className="text-sm text-purple-600">AI 心理陪伴</p>
                   </div>
                 </div>
                 <p className="text-gray-600 text-sm mb-4">
-                  活泼开朗的AI伙伴，用轻松愉快的方式陪伴你，提供积极正面的心理支持。
+                  活泼开朗的 AI 伙伴，用轻松愉快的方式陪伴你，提供积极正面的心理支持。
                 </p>
                 <div className="text-xs text-purple-600 mb-3">
                   ✨ Peppy AI | 积极陪伴
                 </div>
                 <button
                   onClick={() =>
-                    handleAiServiceClick("Peppy助手", "/chat-peppy")
+                    handleAiServiceClick("Peppy 助手", "/chat-peppy")
                   }
                   className="w-full py-2 px-4 rounded-md transition-colors bg-purple-600 text-white hover:bg-purple-700"
                 >
                   开始对话
                 </button>
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
-        {/* Professional Services Section */}
+        {/* Professional Services Section - 暂时隐藏，保留功能供日后使用 */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+          {/* <h2 className="text-2xl font-bold text-gray-900 mb-6">
             专业咨询服务
-          </h2>
+          </h2> */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 专业咨询师 */}
-            {canHuman && (
+            {/* 专业咨询师 - 暂时隐藏 */}
+            {/* {false && (
               <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-center mb-4">
                   <div className="bg-green-100 p-3 rounded-full">
@@ -261,14 +261,14 @@ export default function Dashboard() {
                   预约咨询师
                 </button>
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - 隐藏 Peppy 和预约咨询师入口 */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">快速访问</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <button
               onClick={() => handleAiServiceClick("智心助手", "/chat-doubao")}
               className="flex flex-col items-center p-4 text-center rounded-lg transition-colors hover:bg-gray-50"
@@ -289,45 +289,28 @@ export default function Dashboard() {
               <span className="text-sm text-gray-700">智心助手</span>
             </button>
 
-            <button
-              onClick={() => handleAiServiceClick("Peppy助手", "/chat-peppy")}
-              className="flex flex-col items-center p-4 text-center rounded-lg transition-colors hover:bg-gray-50"
-            >
-              <svg
-                className="h-8 w-8 text-purple-600 mb-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {/* Peppy 助手 - 暂时隐藏 */}
+            {/* {false && (
+              <button
+                onClick={() => handleAiServiceClick("Peppy 助手", "/chat-peppy")}
+                className="flex flex-col items-center p-4 text-center rounded-lg transition-colors hover:bg-gray-50"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                />
-              </svg>
-              <span className="text-sm text-gray-700">Peppy助手</span>
-            </button>
-
-            <button
-              onClick={() => navigate("/appointment")}
-              className="flex flex-col items-center p-4 text-center hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <svg
-                className="h-8 w-8 text-green-600 mb-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-4 8l-4-4m0 0l4-4m-4 4h12"
-                />
-              </svg>
-              <span className="text-sm text-gray-700">预约咨询师</span>
-            </button>
+                <svg
+                  className="h-8 w-8 text-purple-600 mb-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
+                <span className="text-sm text-gray-700">Peppy 助手</span>
+              </button>
+            )} */}
 
             <button
               onClick={() => navigate("/my-appointments")}
@@ -413,7 +396,7 @@ export default function Dashboard() {
                 {selectedAiService}
               </span>{" "}
               需要预约后才能使用。
-              请先预约时间，然后您就可以享受AI心理陪伴服务了。
+              请先预约时间，然后您就可以享受 AI 心理陪伴服务了。
             </p>
             <div className="flex space-x-4 justify-end">
               <button

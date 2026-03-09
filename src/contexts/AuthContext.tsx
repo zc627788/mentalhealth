@@ -14,9 +14,19 @@ interface AuthContextType {
     email: string,
     password: string
   ) => Promise<{ error: string | null }>;
+  signInWithPassword: (
+    phoneNumber: string,
+    password: string
+  ) => Promise<{ error: string | null }>;
   signUp: (
     email: string,
     password: string,
+    name: string
+  ) => Promise<{ error: string | null }>;
+  signUpWithPhone: (
+    phoneNumber: string,
+    password: string,
+    verificationCode: string,
     name: string
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -113,6 +123,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithPassword = async (
+    phoneNumber: string,
+    password: string
+  ): Promise<{ error: string | null }> => {
+    try {
+      // 使用手机号 + 密码登录
+      // 注意：Supabase 默认使用邮箱登录，这里需要使用 phone 登录
+      const { error } = await supabase.auth.signInWithPassword({
+        phone: phoneNumber,
+        password,
+      });
+      if (error) {
+        return { error: getAuthErrorMessage(error.message) };
+      }
+      return { error: null };
+    } catch (error: any) {
+      return { error: getAuthErrorMessage(error.message || "登录失败") };
+    }
+  };
+
   const signUp = async (
     email: string,
     password: string,
@@ -138,6 +168,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signUpWithPhone = async (
+    phoneNumber: string,
+    password: string,
+    verificationCode: string,
+    name: string
+  ): Promise<{ error: string | null }> => {
+    try {
+      // 调用 Edge Function 完成手机号 + 密码 + 验证码注册
+      // verify-sms 会验证验证码，如果成功会创建用户会话
+      const { data, error } = await supabase.functions.invoke('verify-sms', {
+        body: {
+          phoneNumber,
+          verificationCode,
+          type: 'register',
+          name,
+          password // 传递密码用于设置
+        }
+      })
+
+      if (error) {
+        return { error: error.message }
+      }
+
+      if (data?.error) {
+        return { error: data.error }
+      }
+
+      // 注册成功后，Edge Function 会返回 loginUrl，自动完成登录
+      if (data?.loginUrl) {
+        window.location.href = data.loginUrl
+      }
+
+      return { error: null }
+    } catch (error: any) {
+      return { error: getAuthErrorMessage(error.message || "注册失败") };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -146,7 +214,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signIn,
+    signInWithPassword,
     signUp,
+    signUpWithPhone,
     signOut,
   };
 

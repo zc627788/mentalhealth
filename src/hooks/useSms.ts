@@ -3,6 +3,7 @@ import { sendSmsSpug, verifySmsSpug } from "@/lib/smsApi";
 
 export interface SendSMSVars {
   phoneNumber: string;
+  type?: 'login' | 'register';
   cooldownSeconds?: number;
 }
 
@@ -22,8 +23,8 @@ export interface VerifySMSResult {
 
 export function useSendSMSCode() {
   return useMutation({
-    mutationFn: async ({ phoneNumber, cooldownSeconds = 60 }: SendSMSVars) => {
-      return sendSmsSpug({ phoneNumber, cooldownSeconds });
+    mutationFn: async ({ phoneNumber, type, cooldownSeconds = 60 }: SendSMSVars) => {
+      return sendSmsSpug({ phoneNumber, type, cooldownSeconds });
     },
     retry: false,
   });

@@ -5,36 +5,35 @@ import { useSendSMSCode, useVerifySMSCode } from "@/hooks/useSms";
 import { supabase } from "../lib/supabase";
 
 interface LoginFormData {
-  email: string;
-  password: string;
   phoneNumber: string;
+  password: string;
 }
 
 interface LoginFormErrors {
-  email?: string;
-  password?: string;
   phoneNumber?: string;
+  password?: string;
   general?: string;
 }
 
-type LoginMode = "email" | "phone";
+type LoginMode = "phoneCode" | "phonePassword";
 
 export default function Login() {
   const [formData, setFormData] = useState<LoginFormData>({
-    email: "",
-    password: "",
     phoneNumber: "",
+    password: "",
   });
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [loginMode, setLoginMode] = useState<LoginMode>("email");
-  // 验证码相关本页内联
+  const [loginMode, setLoginMode] = useState<LoginMode>("phoneCode");
+  
+  // 验证码相关
   const [verificationCode, setVerificationCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [canResend, setCanResend] = useState(true);
   const [smsTip, setSmsTip] = useState("");
-  const { signIn } = useAuth();
+  
+  const { signIn, signInWithPassword } = useAuth();
   const sendSms = useSendSMSCode();
   const verifySms = useVerifySMSCode();
   const navigate = useNavigate();
@@ -53,32 +52,22 @@ export default function Login() {
   const validateForm = (): boolean => {
     const newErrors: LoginFormErrors = {};
 
-    if (loginMode === "email") {
-      // Email validation
-      if (!formData.email.trim()) {
-        newErrors.email = "请输入邮箱地址";
-      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-        newErrors.email = "邮箱格式不正确";
-      } else if (formData.email.length > 254) {
-        newErrors.email = "邮箱地址过长（最多254个字符）";
-      }
+    // Phone validation
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = "请输入手机号";
+    } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = "手机号格式不正确";
+    }
 
+    if (loginMode === "phonePassword") {
       // Password validation
       if (!formData.password.trim()) {
         newErrors.password = "请输入密码";
       } else if (formData.password.length < 6) {
-        newErrors.password = "密码至少需要6个字符";
-      } else if (formData.password.length > 72) {
-        newErrors.password = "密码过长（最多72个字符）";
+        newErrors.password = "密码至少需要 6 个字符";
       }
     } else {
-      // Phone validation
-      if (!formData.phoneNumber.trim()) {
-        newErrors.phoneNumber = "请输入手机号";
-      } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
-        newErrors.phoneNumber = "手机号格式不正确";
-      }
-      // 提交时需要验证码
+      // 验证码登录时需要验证码
       if (!verificationCode.trim()) {
         newErrors.general = "请输入短信验证码";
       }
@@ -107,13 +96,15 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      if (loginMode === "email") {
-        const { error } = await signIn(formData.email, formData.password);
+      if (loginMode === "phonePassword") {
+        // 手机号 + 密码登录
+        // 注意：需要后端支持手机号密码登录
+        const { error } = await signInWithPassword(formData.phoneNumber, formData.password);
 
         if (error) {
           setErrors({ general: error });
         } else {
-          // Check AI appointment setting and navigate accordingly
+          // 登录成功，检查 AI 服务预约设置
           try {
             const { data: aiAppointmentRequired } = await supabase
               .from("system_settings")
@@ -121,7 +112,6 @@ export default function Login() {
               .eq("setting_key", "ai_appointment_required")
               .maybeSingle();
 
-            // Navigate based on AI appointment setting
             if (aiAppointmentRequired?.setting_value === "true") {
               navigate("/appointment");
             } else {
@@ -129,12 +119,11 @@ export default function Login() {
             }
           } catch (error) {
             console.error("检查跳转路径失败:", error);
-            // Default to appointment page on error
             navigate("/appointment");
           }
         }
       } else {
-        // Phone login - verify via hook
+        // 手机号 + 验证码登录
         try {
           const result = await verifySms.mutateAsync({
             phoneNumber: formData.phoneNumber,
@@ -143,13 +132,10 @@ export default function Login() {
           });
 
           if (result?.loginUrl) {
-            console.log(
-              "🚀 ~ file: Login.tsx:145 ~ result?.loginUrl:",
-              result?.loginUrl
-            );
             window.location.href = result?.loginUrl;
             return;
           }
+          
           // 兜底：按系统设置跳转
           try {
             const { data: aiAppointmentRequired } = await supabase
@@ -178,7 +164,6 @@ export default function Login() {
   };
 
   const handleSendCode = async () => {
-    // 发送验证码
     setErrors({});
     if (!formData.phoneNumber || !/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
       setErrors({ phoneNumber: "请输入正确的手机号" });
@@ -190,11 +175,11 @@ export default function Login() {
     try {
       const res = await sendSms.mutateAsync({
         phoneNumber: formData.phoneNumber,
+        type: 'login', // 登录场景
         cooldownSeconds: 60,
       });
       setCodeSent(true);
       setSmsTip((res as any)?.message || "验证码已发送");
-      // 与后端冷却保持一致：180s
       setCountdown(60);
     } catch (e: any) {
       setErrors({ general: e?.message || "发送失败，请稍后重试" });
@@ -226,25 +211,25 @@ export default function Login() {
         <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
           <button
             type="button"
-            onClick={() => setLoginMode("email")}
+            onClick={() => setLoginMode("phoneCode")}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              loginMode === "email"
+              loginMode === "phoneCode"
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            邮箱登录
+            验证码登录
           </button>
           <button
             type="button"
-            onClick={() => setLoginMode("phone")}
+            onClick={() => setLoginMode("phonePassword")}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              loginMode === "phone"
+              loginMode === "phonePassword"
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            手机登录
+            密码登录
           </button>
         </div>
 
@@ -256,106 +241,40 @@ export default function Login() {
             </div>
           )}
 
-          {/* Email Login Fields */}
-          {loginMode === "email" && (
+          {/* Phone Field */}
+          <div>
+            <label
+              htmlFor="phoneNumber"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              手机号
+            </label>
+            <input
+              type="tel"
+              id="phoneNumber"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                errors.phoneNumber
+                  ? "border-red-300 bg-red-50"
+                  : "border-gray-300"
+              }`}
+              placeholder="请输入手机号"
+              maxLength={11}
+              required
+              disabled={isLoading}
+            />
+            {errors.phoneNumber && (
+              <p className="text-red-600 text-xs mt-1">
+                {errors.phoneNumber}
+              </p>
+            )}
+          </div>
+
+          {/* Phone Code Login */}
+          {loginMode === "phoneCode" && (
             <>
-              {/* Email Field */}
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  邮箱地址
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                    errors.email
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  placeholder="请输入邮箱地址"
-                  maxLength={254}
-                  required
-                  disabled={isLoading}
-                />
-                {errors.email && (
-                  <p className="text-red-600 text-xs mt-1">{errors.email}</p>
-                )}
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  密码
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                    errors.password
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  placeholder="请输入密码"
-                  minLength={6}
-                  maxLength={72}
-                  required
-                  disabled={isLoading}
-                />
-                {errors.password && (
-                  <p className="text-red-600 text-xs mt-1">{errors.password}</p>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Phone Login Field */}
-          {loginMode === "phone" && (
-            <>
-              <div>
-                <label
-                  htmlFor="phoneNumber"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  手机号
-                </label>
-                <input
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                    errors.phoneNumber
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300"
-                  }`}
-                  placeholder="请输入手机号"
-                  maxLength={11}
-                  required
-                  disabled={isLoading}
-                />
-                {errors.phoneNumber && (
-                  <p className="text-red-600 text-xs mt-1">
-                    {errors.phoneNumber}
-                  </p>
-                )}
-              </div>
-              {smsTip && (
-                <div className="text-xs text-blue-600 mt-1">{smsTip}</div>
-              )}
-
               <div>
                 <label
                   htmlFor="verificationCode"
@@ -374,12 +293,12 @@ export default function Login() {
                         e.target.value.replace(/\D/g, "").slice(0, 6)
                       )
                     }
-                    className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors  tracking-widest ${
+                    className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors tracking-widest ${
                       errors.general
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
                     }`}
-                    placeholder="请输入6位验证码"
+                    placeholder="请输入 6 位验证码"
                     maxLength={6}
                     disabled={isLoading}
                   />
@@ -395,13 +314,47 @@ export default function Login() {
                   >
                     {codeSent
                       ? countdown > 0
-                        ? `${countdown}s 后重发`
+                        ? `${countdown}s`
                         : "重新发送"
                       : "获取验证码"}
                   </button>
                 </div>
+                {smsTip && (
+                  <p className="text-xs text-blue-600 mt-1">{smsTip}</p>
+                )}
               </div>
             </>
+          )}
+
+          {/* Phone Password Login */}
+          {loginMode === "phonePassword" && (
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                密码
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                  errors.password
+                    ? "border-red-300 bg-red-50"
+                    : "border-gray-300"
+                }`}
+                placeholder="请输入密码"
+                minLength={6}
+                required
+                disabled={isLoading}
+              />
+              {errors.password && (
+                <p className="text-red-600 text-xs mt-1">{errors.password}</p>
+              )}
+            </div>
           )}
 
           {/* Submit Button */}
@@ -436,10 +389,8 @@ export default function Login() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                {loginMode === "phone" ? "处理中..." : "登录中..."}
+                登录中...
               </span>
-            ) : loginMode === "phone" ? (
-              "登录"
             ) : (
               "登录"
             )}
@@ -448,11 +399,8 @@ export default function Login() {
 
         <div className="mt-6 text-center">
           <p className="text-gray-600 text-sm">
-            还没有账户？{" "}
-            <Link
-              to="/register"
-              className="text-blue-600 hover:text-blue-800 font-medium"
-            >
+            还没有账户？{' '}
+            <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
               立即注册
             </Link>
           </p>

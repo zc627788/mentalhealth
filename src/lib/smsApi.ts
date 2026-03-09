@@ -69,6 +69,7 @@ async function callEdgeFunction<TResponse>(
 
 export interface SendSmsSpugParams {
   phoneNumber: string
+  type?: 'login' | 'register'
   cooldownSeconds?: number
   templateId?: string
 }
