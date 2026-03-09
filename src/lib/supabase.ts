@@ -19,7 +19,7 @@ export const authErrorMessages = {
   'user_already_registered': '此邮箱已被注册，请直接登录或找回密码',
   'Invalid API key': 'API密钥错误，请联系技术支持',
   'Unauthorized': '访问未被授权，请稍后重试',
-  'Invalid login credentials': '登录凭据无效，请检查邮箱和密码'
+  'Invalid login credentials': '登录凭据无效，请检查手机号和密码'
 } as const
 
 export type AuthError = keyof typeof authErrorMessages
