@@ -129,7 +129,7 @@ export default function Dashboard() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 智心助手 (豆包) */}
-            {canDoubao && (
+            {/* {canDoubao && ( */}
               <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-center mb-4">
                   <div className="bg-blue-100 p-3 rounded-full">
@@ -169,7 +169,7 @@ export default function Dashboard() {
                   开始对话
                 </button>
               </div>
-            )}
+            {/* )} */}
 
             {/* Peppy 助手 - 暂时隐藏，保留功能供日后使用 */}
             {/* {false && (
