@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-import { format, parseISO, isAfter, startOfDay } from "date-fns";
-import { id, zhCN } from "date-fns/locale";
+import { format, parseISO } from "date-fns";
+import { enUS, zhCN } from "date-fns/locale";
 import { useRealtimeTable } from "../hooks/useRealtimeTable";
 
 interface Counselor {
@@ -58,6 +59,7 @@ interface FormData {
 }
 
 export default function Appointment() {
+  const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [availabilities, setAvailabilities] = useState<
@@ -84,6 +86,37 @@ export default function Appointment() {
     useState<boolean>(false);
   const [showNonAppointmentModal, setShowNonAppointmentModal] = useState(false);
 
+  const displayName =
+    user?.email?.includes("temp.local")
+      ? user.email.replace("@temp.local", "")
+      : user?.email || "";
+  const dateLocale = i18n.resolvedLanguage === "zh-CN" ? zhCN : enUS;
+
+  const getAiAssistantName = useCallback(
+    (aiModel?: string) => {
+      if (aiModel === "doubao") {
+        return t("appointment.aiNames.doubao");
+      }
+      if (aiModel === "peppy") {
+        return t("appointment.aiNames.peppy");
+      }
+
+      return t("appointment.aiNames.generic");
+    },
+    [t]
+  );
+
+  const getAppointmentCounselorName = useCallback(
+    (appointment: UserAppointment) => {
+      if (appointment.appointment_type === "ai") {
+        return getAiAssistantName(appointment.ai_model);
+      }
+
+      return appointment.counselor_name || t("appointment.counselor");
+    },
+    [getAiAssistantName, t]
+  );
+
   // 实时监听可用时间段的更新
   useRealtimeTable({
     table: "counselor_availability",
@@ -105,7 +138,7 @@ export default function Appointment() {
             description: "",
             urgency: "medium",
           });
-          setError("您选择的时间段刚刚被其他用户预约，请选择其他时间");
+          setError(t("appointment.errors.slotTaken"));
         }
       } else {
         // 当时间段被取消预约时，更新其状态
@@ -177,9 +210,7 @@ export default function Appointment() {
           urgency: "medium",
         });
         setError("");
-        setSuccess(
-          "您的访问权限已更新，如未自动刷新，请手动刷新可用预约选项..."
-        );
+        setSuccess(t("appointment.errors.accessUpdated"));
         // 重新加载可用时间段
         loadAvailableSlots();
       }
@@ -295,17 +326,12 @@ export default function Appointment() {
           if (!counselor && availability.counselor_type === "ai") {
             const aiCounselor = {
               id: availability.counselor_id,
-              name:
-                availability.ai_model === "doubao"
-                  ? "豆包AI助手"
-                  : availability.ai_model === "peppy"
-                  ? "PeppyAI助手"
-                  : "AI智能助手",
-              title: "AI心理咨询师",
-              speciality: "AI心理支持、情绪疏导、认知行为指导",
-              experience: "AI技术支持",
+              name: getAiAssistantName(availability.ai_model),
+              title: t("appointment.aiCounselor"),
+              speciality: t("appointment.aiSpeciality"),
+              experience: t("appointment.aiExperience"),
               rating: 5.0,
-              bio: "基于先进AI技术的智能心理咨询助手，提供24/7心理支持服务",
+              bio: t("appointment.aiBio"),
               available: true,
             };
             return { ...availability, counselor: aiCounselor };
@@ -320,7 +346,7 @@ export default function Appointment() {
       console.error("加载可用时间错误:", error);
       throw error;
     }
-  }, [user?.id]);
+  }, [getAiAssistantName, t, user?.id]);
 
   // 加载单个可用时间段（用于实时更新）
   const loadSingleAvailability = async (availabilityData: any) => {
@@ -441,11 +467,11 @@ export default function Appointment() {
       ]);
     } catch (error) {
       console.error("加载数据错误:", error);
-      setError("加载数据失败，请刷新页面重试");
+      setError(t("appointment.errors.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [loadAvailableSlots, loadUserAppointments, loadAiAppointmentSetting]);
+  }, [loadAvailableSlots, loadUserAppointments, loadAiAppointmentSetting, t]);
 
   useEffect(() => {
     if (user) {
@@ -460,17 +486,17 @@ export default function Appointment() {
 
   const handleBookAppointment = async () => {
     if (!selectedAvailability || !user) {
-      setError("请选择预约时间");
+      setError(t("appointment.errors.chooseSlot"));
       return;
     }
 
     if (!formData.topic.trim()) {
-      setError("请输入咨询主题");
+      setError(t("appointment.errors.topicRequired"));
       return;
     }
 
     if (!formData.description.trim() || formData.description.length < 20) {
-      setError("请详细描述您的情况（至少20个字符）");
+      setError(t("appointment.errors.descriptionRequired"));
       return;
     }
 
@@ -482,7 +508,7 @@ export default function Appointment() {
       const { data: sessionData } = await supabase.auth.getSession();
 
       if (!sessionData.session) {
-        throw new Error("用户会话已过期，请重新登录");
+        throw new Error(t("appointment.errors.sessionExpired"));
       }
 
       // 直接插入预约记录
@@ -507,7 +533,7 @@ export default function Appointment() {
         appointmentData.ai_model = selectedAvailability.ai_model;
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("appointments")
         .insert([appointmentData])
         .select();
@@ -526,7 +552,7 @@ export default function Appointment() {
         console.error("更新可用时间段状态失败:", updateError);
       }
 
-      setSuccess("预约成功！咨询师将会尽快确认您的预约。");
+      setSuccess(t("appointment.bookingSuccess"));
       setSelectedAvailability(null);
       setFormData({
         availability_id: "",
@@ -539,7 +565,7 @@ export default function Appointment() {
       await loadData();
     } catch (error: any) {
       console.error("预约错误:", error);
-      setError(error.message || "预约失败，请稍后重试");
+      setError(error.message || t("appointment.errors.bookingFailed"));
     } finally {
       setBooking(false);
     }
@@ -547,7 +573,7 @@ export default function Appointment() {
 
   const formatDate = (dateStr: string) => {
     try {
-      return format(parseISO(dateStr), "yyyy年MM月dd日 EEEE", { locale: zhCN });
+      return format(parseISO(dateStr), "PPPP", { locale: dateLocale });
     } catch {
       return dateStr;
     }
@@ -563,10 +589,10 @@ export default function Appointment() {
 
   const getStatusText = (status: string) => {
     const statusMap = {
-      pending: "待确认",
-      confirmed: "已确认",
-      completed: "已完成",
-      cancelled: "已取消",
+      pending: t("appointment.status.pending"),
+      confirmed: t("appointment.status.confirmed"),
+      completed: t("appointment.status.completed"),
+      cancelled: t("appointment.status.cancelled"),
     };
     return statusMap[status as keyof typeof statusMap] || status;
   };
@@ -585,10 +611,10 @@ export default function Appointment() {
 
   const getUrgencyText = (urgency: string) => {
     const urgencyMap = {
-      low: "一般",
-      medium: "中等",
-      high: "紧急",
-      urgent: "非常紧急",
+      low: t("appointment.urgencyOptions.low"),
+      medium: t("appointment.urgencyOptions.medium"),
+      high: t("appointment.urgencyOptions.high"),
+      urgent: t("appointment.urgencyOptions.urgent"),
     };
     return urgencyMap[urgency as keyof typeof urgencyMap] || urgency;
   };
@@ -598,7 +624,7 @@ export default function Appointment() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">加载中...</p>
+          <p className="mt-4 text-gray-600">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -611,33 +637,32 @@ export default function Appointment() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">心理咨询预约</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {t("appointment.title")}
+              </h1>
               <nav className="flex space-x-1">
                 {!aiAppointmentRequired && (
                   <button
                     onClick={() => navigate("/dashboard")}
                     className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
                   >
-                    首页
+                    {t("appointment.home")}
                   </button>
                 )}
                 <span className="px-3 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
-                  预约服务
+                  {t("appointment.service")}
                 </span>
               </nav>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                欢迎，
-                {user.email.includes("temp.local")
-                  ? user.email.replace("@temp.local", "")
-                  : user?.email}
+                {t("appointment.welcome", { email: displayName })}
               </span>
               <button
                 onClick={handleSignOut}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
-                退出登录
+                {t("common.logout")}
               </button>
             </div>
           </div>
@@ -657,7 +682,7 @@ export default function Appointment() {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                预约咨询
+                {t("appointment.bookTab")}
               </button>
               <button
                 onClick={() => setActiveTab("history")}
@@ -667,7 +692,7 @@ export default function Appointment() {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                我的预约
+                {t("appointment.historyTab")}
               </button>
             </nav>
           </div>
@@ -693,7 +718,7 @@ export default function Appointment() {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  可预约时间
+                  {t("appointment.availableSlots")}
                 </h2>
 
                 {availabilities.length === 0 ? (
@@ -713,9 +738,9 @@ export default function Appointment() {
                         />
                       </svg>
                     </div>
-                    <p className="text-gray-500">暂无可预约时间</p>
+                    <p className="text-gray-500">{t("appointment.noSlots")}</p>
                     <p className="text-gray-400 text-sm mt-1">
-                      请稍后查看或联系客服
+                      {t("appointment.noSlotsHint")}
                     </p>
                   </div>
                 ) : (
@@ -753,15 +778,18 @@ export default function Appointment() {
                             </div>
 
                             <p className="text-gray-600 mb-2">
-                              专长：{availability.counselor.speciality}
+                              {t("appointment.specialty")}:
+                              {availability.counselor.speciality}
                             </p>
 
                             <div className="flex items-center space-x-4 text-sm text-gray-500">
                               <span>
-                                经验：{availability.counselor.experience}
+                                {t("appointment.experience")}:
+                                {availability.counselor.experience}
                               </span>
                               <span>
-                                评分：{availability.counselor.rating}/5.0
+                                {t("appointment.rating")}:
+                                {availability.counselor.rating}/5.0
                               </span>
                             </div>
                           </div>
@@ -776,7 +804,7 @@ export default function Appointment() {
                             </div>
                             {availability.is_booked && (
                               <div className="text-xs text-red-600 font-medium mt-1">
-                                已被预约
+                                {t("appointment.booked")}
                               </div>
                             )}
                             {availability.notes && (
@@ -797,7 +825,7 @@ export default function Appointment() {
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-sm border p-6 sticky top-8">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  预约信息
+                  {t("appointment.bookingInfo")}
                 </h2>
 
                 {selectedAvailability ? (
@@ -817,7 +845,7 @@ export default function Appointment() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        咨询主题 *
+                        {t("appointment.topic")} *
                       </label>
                       <input
                         type="text"
@@ -829,7 +857,7 @@ export default function Appointment() {
                           }))
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="请输入咨询主题"
+                        placeholder={t("appointment.topicPlaceholder")}
                         maxLength={200}
                       />
                       <p className="text-xs text-gray-500 mt-1">
@@ -839,7 +867,7 @@ export default function Appointment() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        详细描述 *
+                        {t("appointment.description")} *
                       </label>
                       <textarea
                         value={formData.description}
@@ -850,18 +878,20 @@ export default function Appointment() {
                           }))
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="请详细描述您的情况和需要咨询的问题（至少20个字符）"
+                        placeholder={t("appointment.descriptionPlaceholder")}
                         rows={4}
                         maxLength={1000}
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        {formData.description.length}/1000（至少20个字符）
+                        {formData.description.length}/1000
+                        {" · "}
+                        {t("appointment.minLengthHint")}
                       </p>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        紧急程度
+                        {t("appointment.urgency")}
                       </label>
                       <select
                         value={formData.urgency}
@@ -873,10 +903,18 @@ export default function Appointment() {
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="low">一般</option>
-                        <option value="medium">中等</option>
-                        <option value="high">紧急</option>
-                        <option value="urgent">非常紧急</option>
+                        <option value="low">
+                          {t("appointment.urgencyOptions.low")}
+                        </option>
+                        <option value="medium">
+                          {t("appointment.urgencyOptions.medium")}
+                        </option>
+                        <option value="high">
+                          {t("appointment.urgencyOptions.high")}
+                        </option>
+                        <option value="urgent">
+                          {t("appointment.urgencyOptions.urgent")}
+                        </option>
                       </select>
                     </div>
 
@@ -892,10 +930,10 @@ export default function Appointment() {
                       {booking ? (
                         <div className="flex items-center justify-center">
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          提交中...
+                          {t("appointment.submitting")}
                         </div>
                       ) : (
-                        "确认预约"
+                        t("appointment.confirmBooking")
                       )}
                     </button>
                   </div>
@@ -916,7 +954,9 @@ export default function Appointment() {
                         />
                       </svg>
                     </div>
-                    <p className="text-gray-500">请选择预约时间</p>
+                    <p className="text-gray-500">
+                      {t("appointment.selectTime")}
+                    </p>
                   </div>
                 )}
               </div>
@@ -927,7 +967,9 @@ export default function Appointment() {
         {activeTab === "history" && (
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">预约历史</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {t("appointment.historyTitle")}
+              </h2>
             </div>
 
             {userAppointments.length === 0 ? (
@@ -947,7 +989,7 @@ export default function Appointment() {
                     />
                   </svg>
                 </div>
-                <p className="text-gray-500">暂无预约记录</p>
+                <p className="text-gray-500">{t("appointment.noHistory")}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
@@ -969,21 +1011,29 @@ export default function Appointment() {
                         </div>
 
                         <div className="space-y-1 text-sm text-gray-600">
-                          {appointment.counselor_name && (
-                            <p>咨询师：{appointment.counselor_name}</p>
+                          {(appointment.appointment_type === "ai" ||
+                            appointment.counselor_name) && (
+                            <p>
+                              {t("appointment.counselor")}:
+                              {getAppointmentCounselorName(appointment)}
+                            </p>
                           )}
                           <p>
-                            时间：{formatDate(appointment.appointment_date)}{" "}
+                            {t("appointment.time")}:
+                            {formatDate(appointment.appointment_date)}{" "}
                             {formatTime(appointment.start_time)} -{" "}
                             {formatTime(appointment.end_time)}
                           </p>
-                          <p>紧急程度：{getUrgencyText(appointment.urgency)}</p>
                           <p>
-                            预约时间：
+                            {t("appointment.urgency")}:
+                            {getUrgencyText(appointment.urgency)}
+                          </p>
+                          <p>
+                            {t("appointment.createdAt")}:
                             {format(
                               parseISO(appointment.created_at),
-                              "yyyy-MM-dd HH:mm",
-                              { locale: zhCN }
+                              "Pp",
+                              { locale: dateLocale }
                             )}
                           </p>
                         </div>
@@ -991,7 +1041,9 @@ export default function Appointment() {
                         {appointment.description && (
                           <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                             <p className="text-sm text-gray-700">
-                              <span className="font-medium">描述：</span>
+                              <span className="font-medium">
+                                {t("appointment.detail")}:
+                              </span>
                               {appointment.description}
                             </p>
                           </div>
@@ -1021,10 +1073,12 @@ export default function Appointment() {
                                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
                                   }`}
                                   title={
-                                    (!isTimeReached && "未到开始时间") || ""
+                                    (!isTimeReached &&
+                                      t("appointment.notStarted")) ||
+                                    ""
                                   }
                                 >
-                                  点击进入
+                                  {t("appointment.enterSession")}
                                 </button>
                               );
                             })()}
@@ -1038,13 +1092,15 @@ export default function Appointment() {
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <h4 className="font-medium text-green-800">
-                              会议链接已安排
+                              {t("appointment.meetingReady")}
                             </h4>
                             <p className="text-sm text-green-600 mt-1">
-                              请按时参加咨询，建议提前5分钟加入
+                              {t("appointment.meetingReadyHint")}
                             </p>
                             <p className="text-xs text-green-500 mt-2 break-all">
-                              <span className="font-medium">链接：</span>
+                              <span className="font-medium">
+                                {t("appointment.meetingLinkLabel")}:
+                              </span>
                               {appointment.meeting_link}
                             </p>
                           </div>
@@ -1055,7 +1111,7 @@ export default function Appointment() {
                               rel="noopener noreferrer"
                               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                             >
-                              加入会议
+                              {t("appointment.joinMeeting")}
                               <svg
                                 className="ml-2 -mr-1 w-4 h-4"
                                 fill="currentColor"
@@ -1077,7 +1133,7 @@ export default function Appointment() {
                                     const button =
                                       document.activeElement as HTMLButtonElement;
                                     const originalText = button.textContent;
-                                    button.textContent = "已复制!";
+                                    button.textContent = t("appointment.copied");
                                     button.style.backgroundColor = "#10B981";
                                     setTimeout(() => {
                                       button.textContent = originalText;
@@ -1097,7 +1153,7 @@ export default function Appointment() {
                                     const button =
                                       document.activeElement as HTMLButtonElement;
                                     const originalText = button.textContent;
-                                    button.textContent = "已复制!";
+                                    button.textContent = t("appointment.copied");
                                     button.style.backgroundColor = "#10B981";
                                     setTimeout(() => {
                                       button.textContent = originalText;
@@ -1106,8 +1162,8 @@ export default function Appointment() {
                                   });
                               }}
                               className="inline-flex items-center px-3 py-1 border border-green-300 rounded-md text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                            >
-                              <svg
+                              >
+                                <svg
                                 className="mr-1 h-3 w-3"
                                 fill="none"
                                 stroke="currentColor"
@@ -1120,7 +1176,7 @@ export default function Appointment() {
                                   d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                                 />
                               </svg>
-                              复制链接
+                              {t("appointment.copyLink")}
                             </button>
                           </div>
                         </div>
@@ -1146,10 +1202,10 @@ export default function Appointment() {
                           </div>
                           <div className="ml-3">
                             <h4 className="font-medium text-blue-800">
-                              会议安排中
+                              {t("appointment.meetingPending")}
                             </h4>
                             <p className="text-sm text-blue-600 mt-1">
-                              咨询师正在安排会议链接，请耐心等待
+                              {t("appointment.meetingPendingHint")}
                             </p>
                           </div>
                         </div>
@@ -1184,25 +1240,24 @@ export default function Appointment() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-gray-900">
-                AI服务已开放
+                {t("appointment.openAccessTitle")}
               </h3>
             </div>
             <p className="text-gray-600 mb-6">
-              目前AI心理陪伴服务已开放，无需预约即可使用。
-              您可以直接在首页开始与AI助手对话。
+              {t("appointment.openAccessBody")}
             </p>
             <div className="flex space-x-4 justify-end">
               <button
                 onClick={() => setShowNonAppointmentModal(false)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               >
-                取消
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleConfirmToDashboard}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                去首页
+                {t("appointment.goHome")}
               </button>
             </div>
           </div>

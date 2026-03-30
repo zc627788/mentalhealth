@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { format, parseISO, addDays } from "date-fns";
-import { zhCN } from "date-fns/locale";
+import { enUS, zhCN } from "date-fns/locale";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import AdminPeople from "./AdminPeople";
 
@@ -59,6 +60,7 @@ interface AdminUser {
 }
 
 export default function AdminDashboard() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [counselors, setCounselors] = useState<Counselor[]>([]);
@@ -149,6 +151,8 @@ export default function AdminDashboard() {
   const [settingsForm, setSettingsForm] = useState({
     ai_appointment_required: "true",
   });
+  const displayName = adminUser?.email || "";
+  const dateLocale = i18n.resolvedLanguage === "zh-CN" ? zhCN : enUS;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -161,11 +165,11 @@ export default function AdminDashboard() {
       ]);
     } catch (error) {
       console.error("加载数据错误:", error);
-      setError("加载数据失败，请刷新页面重试");
+      setError(t("adminDashboard.feedback.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const verifyAndLoad = async () => {
@@ -330,7 +334,7 @@ export default function AdminDashboard() {
       !counselorForm.title.trim() ||
       !counselorForm.speciality.trim()
     ) {
-      setError("请填写完整的咨询师信息");
+      setError(t("adminDashboard.feedback.fillCounselor"));
       return;
     }
 
@@ -349,7 +353,7 @@ export default function AdminDashboard() {
           .eq("id", editingCounselor.id);
 
         if (error) throw error;
-        setSuccess("咨询师信息更新成功");
+        setSuccess(t("adminDashboard.feedback.counselorUpdated"));
       } else {
         // Add new counselor
         const { error } = await supabase.from("counselors").insert([
@@ -360,7 +364,7 @@ export default function AdminDashboard() {
         ]);
 
         if (error) throw error;
-        setSuccess("咨询师添加成功");
+        setSuccess(t("adminDashboard.feedback.counselorAdded"));
       }
 
       // Reset form
@@ -376,7 +380,7 @@ export default function AdminDashboard() {
       setEditingCounselor(null);
       await loadCounselors();
     } catch (error: any) {
-      setError(error.message || "操作失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.actionFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -389,7 +393,7 @@ export default function AdminDashboard() {
       !availabilityForm.start_time ||
       !availabilityForm.end_time
     ) {
-      setError("请填写完整的时间段信息");
+      setError(t("adminDashboard.feedback.fillAvailability"));
       return;
     }
 
@@ -397,7 +401,7 @@ export default function AdminDashboard() {
       availabilityForm.counselor_type === "human" &&
       !availabilityForm.counselor_id
     ) {
-      setError("请选择咨询师");
+      setError(t("adminDashboard.feedback.chooseCounselor"));
       return;
     }
 
@@ -405,12 +409,12 @@ export default function AdminDashboard() {
       availabilityForm.counselor_type === "ai" &&
       !availabilityForm.ai_model
     ) {
-      setError("请选择AI模型");
+      setError(t("adminDashboard.feedback.chooseAiModel"));
       return;
     }
 
     if (availabilityForm.start_time >= availabilityForm.end_time) {
-      setError("结束时间必须晚于开始时间");
+      setError(t("adminDashboard.feedback.endAfterStart"));
       return;
     }
 
@@ -446,7 +450,7 @@ export default function AdminDashboard() {
 
       if (error) throw error;
 
-      setSuccess("可用时间添加成功");
+      setSuccess(t("adminDashboard.feedback.availabilityAdded"));
       setAvailabilityForm({
         counselor_id: "",
         counselor_type: "human",
@@ -460,14 +464,14 @@ export default function AdminDashboard() {
       await loadAvailabilities();
     } catch (error: any) {
       console.error("添加可用时间错误:", error);
-      setError(error.message || "添加失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.addFailed"));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteAvailability = async (id: string) => {
-    if (!confirm("确定要删除这个时间段吗？")) {
+    if (!confirm(t("adminDashboard.feedback.deleteAvailabilityConfirm"))) {
       return;
     }
 
@@ -479,16 +483,16 @@ export default function AdminDashboard() {
 
       if (error) throw error;
       await loadAvailabilities();
-      setSuccess("时间段删除成功");
+      setSuccess(t("adminDashboard.feedback.availabilityDeleted"));
     } catch (error: any) {
-      setError(error.message || "删除失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.deleteFailed"));
     }
   };
 
   // Meeting Link Management Functions
   const handleAddMeetingLink = async () => {
     if (!selectedAppointment || !meetingLinkForm.meeting_url.trim()) {
-      setError("请选择预约并填写会议链接");
+      setError(t("adminDashboard.feedback.chooseAppointmentAndLink"));
       return;
     }
 
@@ -500,15 +504,15 @@ export default function AdminDashboard() {
       let meetingInfo = meetingLinkForm.meeting_url.trim();
 
       if (meetingLinkForm.meeting_id.trim()) {
-        meetingInfo += `\n会议ID: ${meetingLinkForm.meeting_id.trim()}`;
+        meetingInfo += `\n${t("adminDashboard.meeting.form.meetingId")}: ${meetingLinkForm.meeting_id.trim()}`;
       }
 
       if (meetingLinkForm.meeting_password.trim()) {
-        meetingInfo += `\n会议密码: ${meetingLinkForm.meeting_password.trim()}`;
+        meetingInfo += `\n${t("adminDashboard.meeting.form.meetingPassword")}: ${meetingLinkForm.meeting_password.trim()}`;
       }
 
       if (meetingLinkForm.additional_info.trim()) {
-        meetingInfo += `\n其他信息: ${meetingLinkForm.additional_info.trim()}`;
+        meetingInfo += `\n${t("adminDashboard.meeting.form.additionalInfo")}: ${meetingLinkForm.additional_info.trim()}`;
       }
 
       // 调用邮件发送Edge Function
@@ -526,7 +530,7 @@ export default function AdminDashboard() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error.message);
 
-      setSuccess("会议链接添加成功，已发送邮件通知用户");
+      setSuccess(t("adminDashboard.feedback.meetingLinkAdded"));
       setMeetingLinkForm({
         meeting_platform: "Zoom",
         meeting_url: "",
@@ -539,7 +543,7 @@ export default function AdminDashboard() {
       await loadAppointments();
     } catch (error: any) {
       console.error("添加会议链接错误:", error);
-      setError(error.message || "添加失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.addFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -548,17 +552,17 @@ export default function AdminDashboard() {
   // Batch Availability Management Functions
   const handleBatchAvailability = async () => {
     if (!batchForm.counselor_id || !batchForm.template_type) {
-      setError("请选择咨询师和模板类型");
+      setError(t("adminDashboard.feedback.chooseCounselorAndTemplate"));
       return;
     }
 
     if (batchForm.template_type === "weekly") {
       if (!batchForm.date_range.start_date || !batchForm.date_range.end_date) {
-        setError("请选择日期范围");
+        setError(t("adminDashboard.feedback.chooseDateRange"));
         return;
       }
       if (batchForm.time_slots.length === 0) {
-        setError("请添加时间段");
+        setError(t("adminDashboard.feedback.addTimeSlot"));
         return;
       }
     }
@@ -582,12 +586,12 @@ export default function AdminDashboard() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error.message);
 
-      setSuccess(data?.data?.message || "批量设置成功");
+      setSuccess(data?.data?.message || t("adminDashboard.feedback.batchSuccess"));
       setShowBatchAvailability(false);
       await loadAvailabilities();
     } catch (error: any) {
       console.error("批量设置错误:", error);
-      setError(error.message || "批量设置失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.batchFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -625,7 +629,15 @@ export default function AdminDashboard() {
   };
 
   const getDayName = (dayIndex: number) => {
-    const days = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    const days = [
+      t("adminDashboard.weekdays.sun"),
+      t("adminDashboard.weekdays.mon"),
+      t("adminDashboard.weekdays.tue"),
+      t("adminDashboard.weekdays.wed"),
+      t("adminDashboard.weekdays.thu"),
+      t("adminDashboard.weekdays.fri"),
+      t("adminDashboard.weekdays.sat"),
+    ];
     return days[dayIndex];
   };
 
@@ -661,11 +673,11 @@ export default function AdminDashboard() {
         }
       }
 
-      setSuccess("系统设置保存成功");
+      setSuccess(t("adminDashboard.feedback.settingsSaved"));
       await loadSystemSettings();
     } catch (error: any) {
       console.error("保存设置失败:", error);
-      setError(error.message || "保存失败，请稍后重试");
+      setError(error.message || t("adminDashboard.feedback.saveFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -673,7 +685,7 @@ export default function AdminDashboard() {
 
   const formatDate = (dateStr: string) => {
     try {
-      return format(parseISO(dateStr), "yyyy年MM月dd日 EEEE", { locale: zhCN });
+      return format(parseISO(dateStr), "PPPP", { locale: dateLocale });
     } catch {
       return dateStr;
     }
@@ -685,12 +697,22 @@ export default function AdminDashboard() {
 
   const getStatusText = (status: string) => {
     const statusMap = {
-      pending: "待确认",
-      confirmed: "已确认",
-      completed: "已完成",
-      cancelled: "已取消",
+      pending: t("appointment.status.pending"),
+      confirmed: t("appointment.status.confirmed"),
+      completed: t("appointment.status.completed"),
+      cancelled: t("appointment.status.cancelled"),
     };
     return statusMap[status as keyof typeof statusMap] || status;
+  };
+
+  const getUrgencyText = (urgency: string) => {
+    const urgencyMap = {
+      low: t("appointment.urgencyOptions.low"),
+      medium: t("appointment.urgencyOptions.medium"),
+      high: t("appointment.urgencyOptions.high"),
+      urgent: t("appointment.urgencyOptions.urgent"),
+    };
+    return urgencyMap[urgency as keyof typeof urgencyMap] || urgency;
   };
 
   const getStatusColor = (status: string) => {
@@ -711,7 +733,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">加载中...</p>
+          <p className="mt-4 text-gray-600">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -724,17 +746,19 @@ export default function AdminDashboard() {
         <div className="max-w-[88rem] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">管理员控制台</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {t("adminDashboard.title")}
+              </h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                欢迎，{adminUser?.email}
+                {t("adminDashboard.welcome", { email: displayName })}
               </span>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
-                退出登录
+                {t("common.logout")}
               </button>
             </div>
           </div>
@@ -747,12 +771,18 @@ export default function AdminDashboard() {
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8">
               {[
-                { id: "counselors", name: "咨询师管理" },
-                { id: "availability", name: "时间管理" },
-                { id: "appointments", name: "预约管理" },
-                { id: "meetings", name: "会议链接" },
-                { id: "settings", name: "系统设置" },
-                { id: "people", name: "人员管理" },
+                { id: "counselors", name: t("adminDashboard.tabs.counselors") },
+                {
+                  id: "availability",
+                  name: t("adminDashboard.tabs.availability"),
+                },
+                {
+                  id: "appointments",
+                  name: t("adminDashboard.tabs.appointments"),
+                },
+                { id: "meetings", name: t("adminDashboard.tabs.meetings") },
+                { id: "settings", name: t("adminDashboard.tabs.settings") },
+                { id: "people", name: t("adminDashboard.tabs.people") },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -778,7 +808,7 @@ export default function AdminDashboard() {
               onClick={() => setError("")}
               className="mt-2 text-red-600 hover:text-red-700 text-sm underline"
             >
-              关闭
+              {t("adminDashboard.close")}
             </button>
           </div>
         )}
@@ -790,7 +820,7 @@ export default function AdminDashboard() {
               onClick={() => setSuccess("")}
               className="mt-2 text-green-600 hover:text-green-700 text-sm underline"
             >
-              关闭
+              {t("adminDashboard.close")}
             </button>
           </div>
         )}
@@ -801,7 +831,7 @@ export default function AdminDashboard() {
             <div className="p-6 border-b border-gray-200">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  咨询师管理
+                  {t("adminDashboard.sections.counselors")}
                 </h2>
                 <button
                   onClick={() => {
@@ -818,14 +848,16 @@ export default function AdminDashboard() {
                   }}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  添加咨询师
+                  {t("adminDashboard.counselors.add")}
                 </button>
               </div>
             </div>
 
             {counselors.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">暂无咨询师</p>
+                <p className="text-gray-500">
+                  {t("adminDashboard.counselors.empty")}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
@@ -847,15 +879,23 @@ export default function AdminDashboard() {
                                 : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {counselor.available ? "可用" : "不可用"}
+                            {counselor.available
+                              ? t("adminDashboard.status.available")
+                              : t("adminDashboard.status.unavailable")}
                           </span>
                         </div>
 
                         <div className="space-y-1 text-sm text-gray-600">
-                          <p>专长：{counselor.speciality}</p>
-                          <p>经验：{counselor.experience}</p>
-                          <p>评分：{counselor.rating}/5.0</p>
-                          {counselor.bio && <p>简介：{counselor.bio}</p>}
+                          <p>
+                            {t("appointment.specialty")}:{counselor.speciality}
+                          </p>
+                          <p>
+                            {t("appointment.experience")}:{counselor.experience}
+                          </p>
+                          <p>{t("appointment.rating")}:{counselor.rating}/5.0</p>
+                          {counselor.bio && (
+                            <p>{t("adminDashboard.counselors.bio")}:{counselor.bio}</p>
+                          )}
                         </div>
                       </div>
 
@@ -875,7 +915,7 @@ export default function AdminDashboard() {
                           }}
                           className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
                         >
-                          编辑
+                          {t("adminDashboard.counselors.edit")}
                         </button>
                       </div>
                     </div>
@@ -890,13 +930,15 @@ export default function AdminDashboard() {
                 <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                   <div className="mt-3">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      {editingCounselor ? "编辑咨询师" : "添加咨询师"}
+                      {editingCounselor
+                        ? t("adminDashboard.counselors.edit")
+                        : t("adminDashboard.counselors.add")}
                     </h3>
 
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          姓名 *
+                          {t("adminDashboard.counselors.form.name")} *
                         </label>
                         <input
                           type="text"
@@ -908,13 +950,13 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="请输入咨询师姓名"
+                          placeholder={t("adminDashboard.counselors.placeholders.name")}
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          职称 *
+                          {t("adminDashboard.counselors.form.title")} *
                         </label>
                         <input
                           type="text"
@@ -926,13 +968,13 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="如：高级心理咨询师"
+                          placeholder={t("adminDashboard.counselors.placeholders.title")}
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          专业领域 *
+                          {t("adminDashboard.counselors.form.speciality")} *
                         </label>
                         <input
                           type="text"
@@ -944,13 +986,15 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="如：焦虑症、抑郁症治疗"
+                          placeholder={t(
+                            "adminDashboard.counselors.placeholders.speciality"
+                          )}
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          从业经验
+                          {t("adminDashboard.counselors.form.experience")}
                         </label>
                         <input
                           type="text"
@@ -962,13 +1006,15 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="如：8年临床经验"
+                          placeholder={t(
+                            "adminDashboard.counselors.placeholders.experience"
+                          )}
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          个人简介
+                          {t("adminDashboard.counselors.form.bio")}
                         </label>
                         <textarea
                           value={counselorForm.bio}
@@ -979,14 +1025,14 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="简要介绍咨询师的专业背景和特长"
+                          placeholder={t("adminDashboard.counselors.placeholders.bio")}
                           rows={3}
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          头像链接
+                          {t("adminDashboard.counselors.form.photoUrl")}
                         </label>
                         <input
                           type="url"
@@ -998,7 +1044,9 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="头像图片链接（可选）"
+                          placeholder={t(
+                            "adminDashboard.counselors.placeholders.photoUrl"
+                          )}
                         />
                       </div>
                     </div>
@@ -1019,7 +1067,7 @@ export default function AdminDashboard() {
                         }}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        取消
+                        {t("common.cancel")}
                       </button>
                       <button
                         onClick={handleSaveCounselor}
@@ -1030,7 +1078,9 @@ export default function AdminDashboard() {
                             : "bg-blue-600 hover:bg-blue-700"
                         }`}
                       >
-                        {submitting ? "保存中..." : "保存"}
+                        {submitting
+                          ? t("adminDashboard.buttons.saving")
+                          : t("adminDashboard.buttons.save")}
                       </button>
                     </div>
                   </div>
@@ -1045,7 +1095,7 @@ export default function AdminDashboard() {
             <div className="p-6 border-b border-gray-200">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  时间管理
+                  {t("adminDashboard.sections.availability")}
                 </h2>
                 <div className="flex space-x-3">
                   <button
@@ -1073,7 +1123,7 @@ export default function AdminDashboard() {
                     }}
                     className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
                   >
-                    批量设置
+                    {t("adminDashboard.availability.batch")}
                   </button>
                   <button
                     onClick={() => {
@@ -1090,7 +1140,7 @@ export default function AdminDashboard() {
                     }}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    添加可用时间
+                    {t("adminDashboard.availability.add")}
                   </button>
                 </div>
               </div>
@@ -1098,7 +1148,9 @@ export default function AdminDashboard() {
 
             {availabilities.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">暂无可用时间设置</p>
+                <p className="text-gray-500">
+                  {t("adminDashboard.availability.empty")}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
@@ -1108,7 +1160,8 @@ export default function AdminDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
                           <h3 className="font-semibold text-lg text-gray-900">
-                            {availability.counselor?.name || "未知咨询师"}
+                            {availability.counselor?.name ||
+                              t("adminDashboard.availability.unknownCounselor")}
                           </h3>
                           <span
                             className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -1117,20 +1170,27 @@ export default function AdminDashboard() {
                                 : "bg-green-100 text-green-800"
                             }`}
                           >
-                            {availability.is_booked ? "已预约" : "可预约"}
+                            {availability.is_booked
+                              ? t("adminDashboard.availability.booked")
+                              : t("adminDashboard.availability.open")}
                           </span>
                         </div>
 
                         <div className="space-y-1 text-sm text-gray-600">
                           <p>
-                            日期：{formatDate(availability.availability_date)}
+                            {t("adminDashboard.availability.date")}:
+                            {formatDate(availability.availability_date)}
                           </p>
                           <p>
-                            时间：{formatTime(availability.start_time)} -{" "}
+                            {t("appointment.time")}:
+                            {formatTime(availability.start_time)} -{" "}
                             {formatTime(availability.end_time)}
                           </p>
                           {availability.notes && (
-                            <p>备注：{availability.notes}</p>
+                            <p>
+                              {t("adminDashboard.availability.notes")}:
+                              {availability.notes}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1143,7 +1203,7 @@ export default function AdminDashboard() {
                             }
                             className="px-3 py-1 text-xs font-medium text-red-600 hover:text-red-700 border border-red-200 rounded hover:bg-red-50 transition-colors"
                           >
-                            删除
+                            {t("adminDashboard.availability.delete")}
                           </button>
                         )}
                       </div>
@@ -1159,13 +1219,13 @@ export default function AdminDashboard() {
                 <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                   <div className="mt-3">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      添加可用时间
+                      {t("adminDashboard.availability.add")}
                     </h3>
 
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          服务类型 *
+                          {t("adminDashboard.availability.form.serviceType")} *
                         </label>
                         <select
                           value={availabilityForm.counselor_type}
@@ -1177,9 +1237,13 @@ export default function AdminDashboard() {
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                          <option value="human">人类咨询师</option>
+                          <option value="human">
+                            {t("adminDashboard.availability.form.human")}
+                          </option>
                           {settingsForm.ai_appointment_required === "true" && (
-                            <option value="ai">AI服务</option>
+                            <option value="ai">
+                              {t("adminDashboard.availability.form.ai")}
+                            </option>
                           )}
                         </select>
                       </div>
@@ -1187,7 +1251,7 @@ export default function AdminDashboard() {
                       {availabilityForm.counselor_type === "human" && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            咨询师 *
+                            {t("adminDashboard.availability.form.counselor")} *
                           </label>
                           <select
                             value={availabilityForm.counselor_id}
@@ -1199,7 +1263,9 @@ export default function AdminDashboard() {
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
-                            <option value="">请选择咨询师</option>
+                            <option value="">
+                              {t("adminDashboard.feedback.chooseCounselor")}
+                            </option>
                             {counselors
                               .filter(
                                 (c) =>
@@ -1221,7 +1287,7 @@ export default function AdminDashboard() {
                       {availabilityForm.counselor_type === "ai" && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            AI模型 *
+                            {t("adminDashboard.availability.form.aiModel")} *
                           </label>
                           <select
                             value={availabilityForm.ai_model}
@@ -1233,7 +1299,9 @@ export default function AdminDashboard() {
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
-                            <option value="">请选择AI模型</option>
+                            <option value="">
+                              {t("adminDashboard.feedback.chooseAiModel")}
+                            </option>
                             {counselors
                               .filter(
                                 (c) =>
@@ -1262,7 +1330,7 @@ export default function AdminDashboard() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          日期 *
+                          {t("adminDashboard.availability.form.date")} *
                         </label>
                         <input
                           type="date"
@@ -1281,7 +1349,7 @@ export default function AdminDashboard() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            开始时间 *
+                            {t("adminDashboard.availability.form.startTime")} *
                           </label>
                           <input
                             type="time"
@@ -1298,7 +1366,7 @@ export default function AdminDashboard() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            结束时间 *
+                            {t("adminDashboard.availability.form.endTime")} *
                           </label>
                           <input
                             type="time"
@@ -1316,7 +1384,7 @@ export default function AdminDashboard() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          备注
+                          {t("adminDashboard.availability.form.notes")}
                         </label>
                         <textarea
                           value={availabilityForm.notes}
@@ -1327,7 +1395,7 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="可选的备注信息"
+                          placeholder={t("adminDashboard.availability.form.notesPlaceholder")}
                           rows={2}
                         />
                       </div>
@@ -1349,7 +1417,7 @@ export default function AdminDashboard() {
                         }}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        取消
+                        {t("common.cancel")}
                       </button>
                       <button
                         onClick={handleAddAvailability}
@@ -1360,7 +1428,9 @@ export default function AdminDashboard() {
                             : "bg-blue-600 hover:bg-blue-700"
                         }`}
                       >
-                        {submitting ? "添加中..." : "添加"}
+                        {submitting
+                          ? t("adminDashboard.buttons.adding")
+                          : t("adminDashboard.buttons.add")}
                       </button>
                     </div>
                   </div>
@@ -1373,12 +1443,16 @@ export default function AdminDashboard() {
         {activeTab === "appointments" && (
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">预约管理</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {t("adminDashboard.sections.appointments")}
+              </h2>
             </div>
 
             {appointments.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">暂无预约记录</p>
+                <p className="text-gray-500">
+                  {t("adminDashboard.appointments.empty")}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
@@ -1400,25 +1474,34 @@ export default function AdminDashboard() {
                             </span>
                             {appointment.meeting_link && (
                               <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                                已设会议链接
+                                {t("adminDashboard.appointments.meetingSet")}
                               </span>
                             )}
                           </div>
 
                           <div className="space-y-1 text-sm text-gray-600">
                             <p>
-                              时间：{formatDate(appointment.appointment_date)}{" "}
+                              {t("appointment.time")}:
+                              {formatDate(appointment.appointment_date)}{" "}
                               {formatTime(appointment.start_time)} -{" "}
                               {formatTime(appointment.end_time)}
                             </p>
-                            <p>用户邮箱：{appointment.user_email}</p>
-                            <p>紧急程度：{appointment.urgency}</p>
+                            <p>
+                              {t("adminDashboard.appointments.userEmail")}:
+                              {appointment.user_email}
+                            </p>
+                            <p>
+                              {t("appointment.urgency")}:
+                              {getUrgencyText(appointment.urgency)}
+                            </p>
                           </div>
 
                           {appointment.description && (
                             <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                               <p className="text-sm text-gray-700">
-                                <span className="font-medium">描述：</span>
+                                <span className="font-medium">
+                                  {t("appointment.detail")}:
+                                </span>
                                 {appointment.description}
                               </p>
                             </div>
@@ -1442,7 +1525,7 @@ export default function AdminDashboard() {
                                 }}
                                 className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
                               >
-                                设置会议链接
+                                {t("adminDashboard.buttons.setMeetingLink")}
                               </button>
                             )}
                         </div>
@@ -1461,16 +1544,18 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
-                会议链接管理
+                {t("adminDashboard.sections.meetings")}
               </h2>
               <p className="text-sm text-gray-600 mt-2">
-                查看已设置会议链接的预约
+                {t("adminDashboard.meeting.description")}
               </p>
             </div>
 
             {appointments.filter((a) => a.meeting_link).length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">暂无设置会议链接的预约</p>
+                <p className="text-gray-500">
+                  {t("adminDashboard.meeting.empty")}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
@@ -1496,19 +1581,23 @@ export default function AdminDashboard() {
                                 {getStatusText(appointment.status)}
                               </span>
                               <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                                已设置会议链接
+                                {t("adminDashboard.meeting.badge")}
                               </span>
                             </div>
 
                             <div className="space-y-1 text-sm text-gray-600 mb-3">
                               <p>
-                                时间：{formatDate(appointment.appointment_date)}{" "}
+                                {t("appointment.time")}:
+                                {formatDate(appointment.appointment_date)}{" "}
                                 {formatTime(appointment.start_time)} -{" "}
                                 {formatTime(appointment.end_time)}
                               </p>
-                              <p>用户邮箱：{appointment.user_email}</p>
                               <p>
-                                会议链接：
+                                {t("adminDashboard.appointments.userEmail")}:
+                                {appointment.user_email}
+                              </p>
+                              <p>
+                                {t("adminDashboard.meeting.form.link")}:
                                 <a
                                   href={appointment.meeting_link}
                                   target="_blank"
@@ -1524,7 +1613,7 @@ export default function AdminDashboard() {
                               <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                                 <p className="text-sm text-gray-700">
                                   <span className="font-medium">
-                                    预约描述：
+                                    {t("adminDashboard.meeting.appointmentDescription")}:
                                   </span>
                                   {appointment.description}
                                 </p>
@@ -1547,7 +1636,7 @@ export default function AdminDashboard() {
                               }}
                               className="px-3 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-200 rounded hover:bg-orange-50 transition-colors"
                             >
-                              更新链接
+                              {t("adminDashboard.buttons.updateLink")}
                             </button>
                           </div>
                         </div>
@@ -1562,15 +1651,19 @@ export default function AdminDashboard() {
         {activeTab === "settings" && (
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">系统设置</h2>
-              <p className="text-sm text-gray-600 mt-2">管理系统全局设置</p>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {t("adminDashboard.sections.settings")}
+              </h2>
+              <p className="text-sm text-gray-600 mt-2">
+                {t("adminDashboard.settings.subtitle")}
+              </p>
             </div>
 
             <div className="p-6">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    AI服务预约模式
+                    {t("adminDashboard.settings.aiMode")}
                   </label>
                   <select
                     value={settingsForm.ai_appointment_required}
@@ -1582,11 +1675,15 @@ export default function AdminDashboard() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="true">AI服务需要预约</option>
-                    <option value="false">AI服务直接访问</option>
+                    <option value="true">
+                      {t("adminDashboard.settings.required")}
+                    </option>
+                    <option value="false">
+                      {t("adminDashboard.settings.direct")}
+                    </option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    控制AI服务是否需要预约时间段
+                    {t("adminDashboard.settings.hint")}
                   </p>
                 </div>
 
@@ -1600,7 +1697,9 @@ export default function AdminDashboard() {
                         : "bg-blue-600 hover:bg-blue-700"
                     }`}
                   >
-                    {submitting ? "保存中..." : "保存设置"}
+                    {submitting
+                      ? t("adminDashboard.buttons.saving")
+                      : t("adminDashboard.buttons.settings")}
                   </button>
                 </div>
               </div>
@@ -1619,16 +1718,20 @@ export default function AdminDashboard() {
             <div className="relative top-20 mx-auto p-5 border w-[32rem] shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  设置会议链接
+                  {t("adminDashboard.meeting.form.title")}
                 </h3>
 
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-medium text-blue-900">预约信息</h4>
+                  <h4 className="font-medium text-blue-900">
+                    {t("adminDashboard.meeting.form.bookingInfo")}
+                  </h4>
                   <p className="text-sm text-blue-700">
-                    主题：{selectedAppointment.topic}
+                    {t("adminDashboard.meeting.form.topic")}:
+                    {selectedAppointment.topic}
                   </p>
                   <p className="text-sm text-blue-700">
-                    时间：{formatDate(selectedAppointment.appointment_date)}{" "}
+                    {t("appointment.time")}:
+                    {formatDate(selectedAppointment.appointment_date)}{" "}
                     {formatTime(selectedAppointment.start_time)}
                   </p>
                 </div>
@@ -1636,7 +1739,7 @@ export default function AdminDashboard() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      会议平台 *
+                      {t("adminDashboard.meeting.form.platform")} *
                     </label>
                     <select
                       value={meetingLinkForm.meeting_platform}
@@ -1649,16 +1752,24 @@ export default function AdminDashboard() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="Zoom">Zoom</option>
-                      <option value="腾讯会议">腾讯会议</option>
-                      <option value="钉钉">钉钉</option>
-                      <option value="飞书">飞书</option>
-                      <option value="其他">其他</option>
+                      <option value="tencent-meeting">
+                        {t("adminDashboard.meeting.platforms.tencent")}
+                      </option>
+                      <option value="dingtalk">
+                        {t("adminDashboard.meeting.platforms.dingTalk")}
+                      </option>
+                      <option value="feishu">
+                        {t("adminDashboard.meeting.platforms.feishu")}
+                      </option>
+                      <option value="other">
+                        {t("adminDashboard.meeting.platforms.other")}
+                      </option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      会议链接 *
+                      {t("adminDashboard.meeting.form.link")} *
                     </label>
                     <input
                       type="url"
@@ -1670,13 +1781,13 @@ export default function AdminDashboard() {
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="请输入完整的会议链接"
+                      placeholder={t("adminDashboard.meeting.form.linkPlaceholder")}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      会议ID
+                      {t("adminDashboard.meeting.form.meetingId")}
                     </label>
                     <input
                       type="text"
@@ -1688,13 +1799,13 @@ export default function AdminDashboard() {
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="会议ID（如有）"
+                      placeholder={t("adminDashboard.meeting.form.meetingIdPlaceholder")}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      会议密码
+                      {t("adminDashboard.meeting.form.meetingPassword")}
                     </label>
                     <input
                       type="text"
@@ -1706,13 +1817,15 @@ export default function AdminDashboard() {
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="会议密码（如有）"
+                      placeholder={t(
+                        "adminDashboard.meeting.form.meetingPasswordPlaceholder"
+                      )}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      其他信息
+                      {t("adminDashboard.meeting.form.additionalInfo")}
                     </label>
                     <textarea
                       value={meetingLinkForm.additional_info}
@@ -1723,7 +1836,9 @@ export default function AdminDashboard() {
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="其他需要告知用户的信息"
+                      placeholder={t(
+                        "adminDashboard.meeting.form.additionalInfoPlaceholder"
+                      )}
                       rows={3}
                     />
                   </div>
@@ -1744,7 +1859,7 @@ export default function AdminDashboard() {
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    取消
+                    {t("common.cancel")}
                   </button>
                   <button
                     onClick={handleAddMeetingLink}
@@ -1755,7 +1870,9 @@ export default function AdminDashboard() {
                         : "bg-blue-600 hover:bg-blue-700"
                     }`}
                   >
-                    {submitting ? "设置中..." : "设置会议链接"}
+                    {submitting
+                      ? t("adminDashboard.buttons.configuring")
+                      : t("adminDashboard.buttons.setLink")}
                   </button>
                 </div>
               </div>
