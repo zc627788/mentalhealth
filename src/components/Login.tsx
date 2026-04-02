@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useSendSMSCode, useVerifySMSCode } from "@/hooks/useSms";
 import SliderCaptchaDialog from "./SliderCaptchaDialog";
+import PhoneNumberField from "./PhoneNumberField";
 import { useCaptchaGate } from "@/hooks/useCaptchaGate";
+import { isValidPhoneInput } from "@/lib/phone";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
@@ -61,7 +63,7 @@ export default function Login() {
 
     if (!formData.phoneNumber.trim()) {
       nextErrors.phoneNumber = t("login.errors.phoneRequired");
-    } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+    } else if (!isValidPhoneInput(formData.phoneNumber)) {
       nextErrors.phoneNumber = t("login.errors.phoneInvalid");
     }
 
@@ -177,7 +179,7 @@ export default function Login() {
   const handleSendCode = async () => {
     setErrors({});
 
-    if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+    if (!isValidPhoneInput(formData.phoneNumber)) {
       setErrors({ phoneNumber: t("login.errors.phoneInvalid") });
       return;
     }
@@ -202,11 +204,25 @@ export default function Login() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
     if (errors[name as keyof LoginFormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      phoneNumber: value,
+    }));
+
+    if (errors.phoneNumber) {
+      setErrors((prev) => ({ ...prev, phoneNumber: undefined }));
     }
   };
 
@@ -259,20 +275,18 @@ export default function Login() {
             >
               {t("login.phoneNumber")}
             </label>
-            <input
-              type="tel"
+            <PhoneNumberField
               id="phoneNumber"
               name="phoneNumber"
               value={formData.phoneNumber}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors.phoneNumber ? "border-red-300 bg-red-50" : "border-gray-300"
-              }`}
+              onChange={handlePhoneNumberChange}
               placeholder={t("login.phonePlaceholder")}
-              maxLength={11}
-              required
               disabled={isLoading}
+              error={errors.phoneNumber}
             />
+            <p className="mt-1 text-[11px] text-slate-400">
+              {t("login.phoneHint")}
+            </p>
             {errors.phoneNumber && (
               <p className="text-red-600 text-xs mt-1">{errors.phoneNumber}</p>
             )}
@@ -333,7 +347,7 @@ export default function Login() {
                 id="password"
                 name="password"
                 value={formData.password}
-                onChange={handleChange}
+                onChange={handleTextChange}
                 className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
                   errors.password ? "border-red-300 bg-red-50" : "border-gray-300"
                 }`}

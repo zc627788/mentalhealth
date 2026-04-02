@@ -1,142 +1,287 @@
-// Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 interface SendSMSPayload {
   phoneNumber: string;
-  type?: 'register' | 'login'; // 区分注册/登录场景
-  templateId?: string; // 默认模板 ID
-  codeLength?: number; // 默认 6 位
-  ttlSeconds?: number; // 默认 300 秒
-  cooldownSeconds?: number; // 默认 180 秒（3 分钟）
-}
-
-interface SendSMSResponse {
-  success?: boolean;
-  message?: string;
-  error?: string;
+  type?: "register" | "login";
+  templateId?: string;
+  codeLength?: number;
+  cooldownSeconds?: number;
+  ttlSeconds?: number;
 }
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Content-Type': 'application/json',
-  'Connection': 'keep-alive'
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+  Connection: "keep-alive",
+};
+
+const INTERNATIONAL_PHONE_PATTERN = /^\+[1-9]\d{6,14}$/;
+
+function sanitizePhoneInput(value: string) {
+  const trimmed = value.trim();
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digitsOnly = trimmed.replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    return hasLeadingPlus ? "+" : "";
+  }
+
+  return hasLeadingPlus ? `+${digitsOnly}` : digitsOnly;
+}
+
+function parsePhoneNumber(value: string) {
+  const compact = sanitizePhoneInput(value);
+  if (!compact) {
+    return {
+      isDomestic: false,
+      isValid: false,
+      normalizedPhone: null as string | null,
+    };
+  }
+
+  const mainlandMatch = compact.match(/^(?:\+?86)?(1[3-9]\d{9})$/);
+  if (mainlandMatch) {
+    return {
+      isDomestic: true,
+      isValid: true,
+      normalizedPhone: mainlandMatch[1],
+    };
+  }
+
+  if (INTERNATIONAL_PHONE_PATTERN.test(compact)) {
+    return {
+      isDomestic: false,
+      isValid: true,
+      normalizedPhone: compact,
+    };
+  }
+
+  return {
+    isDomestic: false,
+    isValid: false,
+    normalizedPhone: null as string | null,
+  };
 }
 
 function generateCode(length: number) {
-  const min = Math.pow(10, length - 1)
-  const max = Math.pow(10, length) - 1
-  return String(Math.floor(Math.random() * (max - min + 1)) + min)
+  const min = Math.pow(10, length - 1);
+  const max = Math.pow(10, length) - 1;
+  return String(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
-console.info('send-sms-spug started')
+async function sendDomesticSms(
+  phoneNumber: string,
+  code: string,
+  templateId: string
+) {
+  if (!templateId) {
+    throw new Error("Domestic SMS template is not configured.");
+  }
+
+  const url = `https://push.spug.cc/sms/${encodeURIComponent(templateId)}`;
+  const response = await fetch(
+    `${url}?code=${encodeURIComponent(code)}&to=${encodeURIComponent(phoneNumber)}`,
+    { method: "GET" }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Spug SMS send failed:", errorText);
+    throw new Error("Failed to send domestic SMS.");
+  }
+}
+
+async function sendInternationalSms(
+  phoneNumber: string,
+  code: string,
+  type: string
+) {
+  const apikey = Deno.env.get("YUNPIAN_API_KEY") || "";
+  if (!apikey) {
+    throw new Error("International SMS provider is not configured.");
+  }
+
+  const intlApiUrl =
+    Deno.env.get("YUNPIAN_INTL_SMS_URL") ||
+    "https://sms.yunpian.com/v2/sms/single_send.json";
+  const template =
+    Deno.env.get("YUNPIAN_INTL_TEMPLATE") ||
+    "[Mental Health] Your verification code is #code#, valid for ten minutes. Please ignore if not initiated by you.";
+  const text = template.replaceAll("#code#", code);
+
+  const body = new URLSearchParams({
+    apikey,
+    mobile: phoneNumber,
+    text,
+  });
+
+  const response = await fetch(intlApiUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json;charset=utf-8",
+      "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+    },
+    body: body.toString(),
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result || result.code !== 0) {
+    console.error("Yunpian international SMS send failed:", result);
+    const errorMessage =
+      result?.msg ||
+      `Failed to send ${type === "register" ? "registration" : "login"} SMS.`;
+    throw new Error(errorMessage);
+  }
+}
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
 
-    const { phoneNumber, type, templateId = Deno.env.get('SPUG_TEMPLATE_ID') || '', codeLength = 6, ttlSeconds = 600, cooldownSeconds = 180 } = await req.json() as SendSMSPayload
+    const {
+      phoneNumber,
+      type,
+      templateId = Deno.env.get("SPUG_TEMPLATE_ID") || "",
+      codeLength = 6,
+      cooldownSeconds = 180,
+      ttlSeconds = 600,
+    } = (await req.json()) as SendSMSPayload;
 
-    if (!phoneNumber) return new Response(JSON.stringify({ error: '缺少手机号' }), { status: 400, headers: corsHeaders })
-    if (!templateId) return new Response(JSON.stringify({ error: '缺少模板 ID' }), { status: 400, headers: corsHeaders })
-    if (codeLength < 4 || codeLength > 8) return new Response(JSON.stringify({ error: 'codeLength 范围应为 4-8' }), { status: 400, headers: corsHeaders })
+    const parsedPhone = parsePhoneNumber(phoneNumber || "");
+    if (!parsedPhone.isValid || !parsedPhone.normalizedPhone) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Enter a valid phone number. Mainland China numbers can use 11 digits, and international numbers should include the country code, for example +12025550123.",
+        }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
 
-    const phoneRegex = /^1[3-9]\d{9}$/
-    if (!phoneRegex.test(phoneNumber)) return new Response(JSON.stringify({ error: '手机号格式不正确' }), { status: 400, headers: corsHeaders })
-
-    // ✅ 根据 type 检查手机号状态
-    if (type === 'login') {
-      // 登录场景：检查手机号是否已注册
+    if (type === "login") {
       const { data: existingUser } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('phone', phoneNumber)
-        .limit(1)
-      
+        .from("user_profiles")
+        .select("id")
+        .eq("phone", parsedPhone.normalizedPhone)
+        .limit(1);
+
       if (!existingUser || existingUser.length === 0) {
         return new Response(
-          JSON.stringify({ error: '该手机号未注册，请先注册' }),
+          JSON.stringify({ error: "This phone number is not registered yet." }),
           { status: 400, headers: corsHeaders }
-        )
+        );
       }
-    } else if (type === 'register') {
-      // 注册场景：检查手机号是否已注册
+    } else if (type === "register") {
       const { data: existingUser } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('phone', phoneNumber)
-        .limit(1)
-      
+        .from("user_profiles")
+        .select("id")
+        .eq("phone", parsedPhone.normalizedPhone)
+        .limit(1);
+
       if (existingUser && existingUser.length > 0) {
         return new Response(
-          JSON.stringify({ error: '该手机号已注册，请直接登录' }),
+          JSON.stringify({ error: "This phone number is already registered." }),
           { status: 400, headers: corsHeaders }
-        )
+        );
       }
     }
-    // type 为空时，不检查手机号状态，直接发送验证码
 
-    // 冷却时间检查：同一手机号在 cooldownSeconds 内只允许发送一次
-    const cooldownSince = new Date(Date.now() - cooldownSeconds * 1000).toISOString()
-    const { data: recent, error: recentErr } = await supabase
-      .from('sms_verification_codes')
-      .select('created_at')
-      .eq('phone_number', phoneNumber)
-      .gt('created_at', cooldownSince)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (recentErr) {
-      console.error('查询冷却窗口失败:', recentErr)
-      return new Response(JSON.stringify({ error: '系统错误，请稍后重试' }), { status: 500, headers: corsHeaders })
+    const cooldownSince = new Date(
+      Date.now() - cooldownSeconds * 1000
+    ).toISOString();
+    const { data: recent, error: recentError } = await supabase
+      .from("sms_verification_codes")
+      .select("created_at")
+      .eq("phone_number", parsedPhone.normalizedPhone)
+      .gt("created_at", cooldownSince)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (recentError) {
+      console.error("SMS cooldown query failed:", recentError);
+      return new Response(
+        JSON.stringify({ error: "System error. Please try again later." }),
+        { status: 500, headers: corsHeaders }
+      );
     }
+
     if (recent && recent.length > 0) {
-      const last = new Date(recent[0].created_at as unknown as string).getTime()
-      const now = Date.now()
-      const remain = Math.max(0, Math.ceil((cooldownSeconds * 1000 - (now - last)) / 1000))
-      const body = { error: `发送过于频繁，请${remain}秒后重试` }
-      return new Response(JSON.stringify(body), { status: 429, headers: { ...corsHeaders, 'Retry-After': String(remain) } })
+      const lastSentAt = new Date(recent[0].created_at as string).getTime();
+      const remain = Math.max(
+        0,
+        Math.ceil((cooldownSeconds * 1000 - (Date.now() - lastSentAt)) / 1000)
+      );
+
+      return new Response(
+        JSON.stringify({
+          error: `Too many requests. Please try again in ${remain} seconds.`,
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Retry-After": String(remain) },
+        }
+      );
     }
 
-    // 生成验证码
-    const code = generateCode(codeLength)
-
-    // 写入验证码表（未使用，带过期）
-    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
+    const verificationCode = generateCode(codeLength);
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
     const { error: insertError } = await supabase
-      .from('sms_verification_codes')
+      .from("sms_verification_codes")
       .insert({
-        phone_number: phoneNumber,
-        verification_code: code,
+        phone_number: parsedPhone.normalizedPhone,
+        verification_code: verificationCode,
         is_used: false,
         expires_at: expiresAt,
-      })
+      });
+
     if (insertError) {
-      console.error('写入验证码失败:', insertError)
-      return new Response(JSON.stringify({ error: '系统错误，请稍后重试' }), { status: 500, headers: corsHeaders })
+      console.error("Failed to store verification code:", insertError);
+      return new Response(
+        JSON.stringify({ error: "System error. Please try again later." }),
+        { status: 500, headers: corsHeaders }
+      );
     }
 
-    // 调用 Spug 短信服务
-    const url = `https://push.spug.cc/send/${encodeURIComponent(templateId)}`
-    const spugRes = await fetch(`${url}?code=${encodeURIComponent(code)}&targets=${encodeURIComponent(phoneNumber)}`, { method: 'GET' })
-    let spugJson: any = null
-    try { spugJson = await spugRes.json() } catch { spugJson = null }
-    if (!spugRes.ok) {
-      console.error('调用 Spug 失败:', spugJson || spugRes.statusText)
-      return new Response(JSON.stringify({ error: '短信通道错误' }), { status: spugRes.status || 500, headers: corsHeaders })
+    if (parsedPhone.isDomestic) {
+      await sendDomesticSms(
+        parsedPhone.normalizedPhone,
+        verificationCode,
+        templateId
+      );
+    } else {
+      await sendInternationalSms(
+        parsedPhone.normalizedPhone,
+        verificationCode,
+        type || "login"
+      );
     }
 
-    return new Response(JSON.stringify({ success: true, message: '验证码已发送' }), { status: 200, headers: corsHeaders })
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Verification code sent.",
+      }),
+      { status: 200, headers: corsHeaders }
+    );
+  } catch (error) {
+    console.error("send-sms-spug error:", error);
+    const message =
+      error instanceof Error ? error.message : "Internal server error.";
 
-  } catch (e) {
-    console.error('send-sms-spug error:', e)
-    return new Response(JSON.stringify({ error: '服务器内部错误' }), { status: 500, headers: corsHeaders })
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
-})
+});

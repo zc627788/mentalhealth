@@ -20,6 +20,12 @@ export const resources = {
       language: {
         switchLabel: "语言",
       },
+      phoneField: {
+        countryAriaLabel: "选择国家和区号",
+        searchPlaceholder: "搜索国家、区号或代码",
+        searchHint: "可输入国家名、区号或两位国家代码，例如 +1、US、英国",
+        noResults: "没有匹配的国家或区号",
+      },
       captcha: {
         title: "安全验证",
         loginHint: "",
@@ -55,7 +61,8 @@ export const resources = {
         phoneCode: "验证码登录",
         passwordLogin: "密码登录",
         phoneNumber: "手机号",
-        phonePlaceholder: "请输入手机号",
+        phonePlaceholder: "请输入号码",
+        phoneHint: "",
         password: "密码",
         passwordPlaceholder: "请输入密码",
         code: "短信验证码",
@@ -69,7 +76,7 @@ export const resources = {
         createdBy: "Created by MiniMax Agent",
         errors: {
           phoneRequired: "请输入手机号",
-          phoneInvalid: "手机号格式不正确",
+          phoneInvalid: "请输入正确的手机号。中国大陆号码可直接输入 11 位，海外号码请带国际区号。",
           passwordRequired: "请输入密码",
           passwordShort: "密码至少需要 6 个字符",
           codeRequired: "请输入短信验证码",
@@ -91,7 +98,8 @@ export const resources = {
         validated: "已验证",
         randomIdSuccess: "资格 ID 验证通过",
         phoneNumber: "手机号",
-        phonePlaceholder: "请输入手机号",
+        phonePlaceholder: "请输入号码",
+        phoneHint: "",
         code: "短信验证码",
         codePlaceholder: "请输入 6 位验证码",
         getCode: "获取验证码",
@@ -114,7 +122,7 @@ export const resources = {
           nameShort: "姓名至少需要 2 个字符",
           nameLong: "姓名不能超过 50 个字符",
           phoneRequired: "请输入手机号",
-          phoneInvalid: "手机号格式不正确",
+          phoneInvalid: "请输入正确的手机号。中国大陆号码可直接输入 11 位，海外号码请带国际区号。",
           randomIdRequired: "请输入资格 ID",
           randomIdInvalid: "资格 ID 格式不正确",
           randomIdValidateFirst: "请先验证资格 ID",
@@ -557,6 +565,12 @@ export const resources = {
       language: {
         switchLabel: "Language",
       },
+      phoneField: {
+        countryAriaLabel: "Choose country and dial code",
+        searchPlaceholder: "Search by country, dial code, or ISO code",
+        searchHint: "Try +1, US, United Kingdom, or another country code",
+        noResults: "No matching country or dial code",
+      },
       captcha: {
         title: "Security check",
         loginHint: "",
@@ -597,7 +611,8 @@ export const resources = {
         phoneCode: "SMS code",
         passwordLogin: "Password",
         phoneNumber: "Phone number",
-        phonePlaceholder: "Enter your phone number",
+        phonePlaceholder: "Enter the number",
+        phoneHint: "",
         password: "Password",
         passwordPlaceholder: "Enter your password",
         code: "SMS code",
@@ -611,7 +626,8 @@ export const resources = {
         createdBy: "Created by MiniMax Agent",
         errors: {
           phoneRequired: "Please enter your phone number",
-          phoneInvalid: "Invalid phone number format",
+          phoneInvalid:
+            "Enter a valid phone number. Mainland China numbers can use 11 digits, and international numbers should include the country code.",
           passwordRequired: "Please enter your password",
           passwordShort: "Password must be at least 6 characters",
           codeRequired: "Please enter the SMS code",
@@ -633,7 +649,8 @@ export const resources = {
         validated: "Verified",
         randomIdSuccess: "Eligibility ID verified",
         phoneNumber: "Phone number",
-        phonePlaceholder: "Enter your phone number",
+        phonePlaceholder: "Enter the number",
+        phoneHint: "",
         code: "SMS code",
         codePlaceholder: "Enter the 6-digit code",
         getCode: "Get code",
@@ -658,7 +675,8 @@ export const resources = {
           nameShort: "Name must be at least 2 characters",
           nameLong: "Name must be 50 characters or fewer",
           phoneRequired: "Please enter your phone number",
-          phoneInvalid: "Invalid phone number format",
+          phoneInvalid:
+            "Enter a valid phone number. Mainland China numbers can use 11 digits, and international numbers should include the country code.",
           randomIdRequired: "Please enter your eligibility ID",
           randomIdInvalid: "Eligibility ID must be 5 letters or digits",
           randomIdValidateFirst: "Please verify the eligibility ID first",

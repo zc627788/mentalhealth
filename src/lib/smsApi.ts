@@ -67,14 +67,14 @@ async function callEdgeFunction<TResponse>(
 // SMS APIs
 // ==============
 
-export interface SendSmsSpugParams {
+export interface SendSmsCodeParams {
   phoneNumber: string
   type?: 'login' | 'register'
   cooldownSeconds?: number
   templateId?: string
 }
 
-export async function sendSmsSpug(params: SendSmsSpugParams, options?: SmsCallOptions) {
+export async function sendSmsCode(params: SendSmsCodeParams, options?: SmsCallOptions) {
   return callEdgeFunction<{ success?: boolean; message?: string }>('send-sms-spug', params, options)
 }
 
@@ -95,6 +95,10 @@ export interface VerifySmsSpugResponse {
 
 export async function verifySmsSpug(params: VerifySmsSpugParams, options?: SmsCallOptions) {
   return callEdgeFunction<VerifySmsSpugResponse>('verify-sms', params, options)
+}
+
+export async function sendSmsSpug(params: SendSmsCodeParams, options?: SmsCallOptions) {
+  return callEdgeFunction<{ success?: boolean; message?: string }>('send-sms-spug', params, options)
 }
 
 

@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useSendSMSCode } from "@/hooks/useSms";
+import { isValidPhoneInput } from "@/lib/phone";
 import { supabase } from "@/lib/supabase";
 import SliderCaptchaDialog from "./SliderCaptchaDialog";
+import PhoneNumberField from "./PhoneNumberField";
 import { useCaptchaGate } from "@/hooks/useCaptchaGate";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -77,7 +79,7 @@ export default function Register() {
 
     if (!formData.phoneNumber.trim()) {
       nextErrors.phoneNumber = t("register.errors.phoneRequired");
-    } else if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+    } else if (!isValidPhoneInput(formData.phoneNumber)) {
       nextErrors.phoneNumber = t("register.errors.phoneInvalid");
     }
 
@@ -213,7 +215,7 @@ export default function Register() {
       return;
     }
 
-    if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
+    if (!isValidPhoneInput(formData.phoneNumber)) {
       setErrors({ phoneNumber: t("register.errors.phoneInvalid") });
       return;
     }
@@ -256,9 +258,12 @@ export default function Register() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
 
     if (errors[name as keyof RegisterFormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
@@ -270,9 +275,19 @@ export default function Register() {
       captchaGate.resetVerification();
     }
 
-    if (name === "phoneNumber") {
-      captchaGate.resetVerification();
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      phoneNumber: value,
+    }));
+
+    if (errors.phoneNumber) {
+      setErrors((prev) => ({ ...prev, phoneNumber: undefined }));
     }
+
+    captchaGate.resetVerification();
   };
 
   return (
@@ -300,7 +315,7 @@ export default function Register() {
               id="name"
               name="name"
               value={formData.name}
-              onChange={handleChange}
+              onChange={handleTextChange}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.name ? "border-red-300 bg-red-50" : "border-gray-300"
               }`}
@@ -324,7 +339,7 @@ export default function Register() {
                 id="randomId"
                 name="randomId"
                 value={formData.randomId}
-                onChange={handleChange}
+                onChange={handleTextChange}
                 className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest ${
                   errors.randomId ? "border-red-300 bg-red-50" : "border-gray-300"
                 } ${randomIdValidated ? "border-green-500 bg-green-50" : ""}`}
@@ -370,19 +385,18 @@ export default function Register() {
             <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
               {t("register.phoneNumber")}
             </label>
-            <input
-              type="tel"
+            <PhoneNumberField
               id="phoneNumber"
               name="phoneNumber"
               value={formData.phoneNumber}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.phoneNumber ? "border-red-300 bg-red-50" : "border-gray-300"
-              }`}
+              onChange={handlePhoneNumberChange}
               placeholder={t("register.phonePlaceholder")}
-              maxLength={11}
               disabled={isLoading}
+              error={errors.phoneNumber}
             />
+            <p className="mt-1 text-[11px] text-slate-400">
+              {t("register.phoneHint")}
+            </p>
             {errors.phoneNumber && (
               <p className="text-red-600 text-xs mt-1">{errors.phoneNumber}</p>
             )}
@@ -437,7 +451,7 @@ export default function Register() {
               id="password"
               name="password"
               value={formData.password}
-              onChange={handleChange}
+              onChange={handleTextChange}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.password ? "border-red-300 bg-red-50" : "border-gray-300"
               }`}
@@ -460,7 +474,7 @@ export default function Register() {
               id="confirmPassword"
               name="confirmPassword"
               value={formData.confirmPassword}
-              onChange={handleChange}
+              onChange={handleTextChange}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.confirmPassword ? "border-red-300 bg-red-50" : "border-gray-300"
               }`}
