@@ -67,6 +67,27 @@ function parsePhoneNumber(value: string) {
   };
 }
 
+function getPhoneLookupValues(
+  parsedPhone: ReturnType<typeof parsePhoneNumber>
+) {
+  if (!parsedPhone.normalizedPhone) {
+    return [];
+  }
+
+  if (parsedPhone.isDomestic) {
+    return [
+      parsedPhone.normalizedPhone,
+      `86${parsedPhone.normalizedPhone}`,
+      `+86${parsedPhone.normalizedPhone}`,
+    ];
+  }
+
+  return [
+    parsedPhone.normalizedPhone,
+    parsedPhone.normalizedPhone.replace(/^\+/, ""),
+  ];
+}
+
 function generateCode(length: number) {
   const min = Math.pow(10, length - 1);
   const max = Math.pow(10, length) - 1;
@@ -169,11 +190,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const phoneLookupValues = getPhoneLookupValues(parsedPhone);
+
     if (type === "login") {
       const { data: existingUser } = await supabase
         .from("user_profiles")
         .select("id")
-        .eq("phone", parsedPhone.normalizedPhone)
+        .in("phone", phoneLookupValues)
         .limit(1);
 
       if (!existingUser || existingUser.length === 0) {
@@ -186,7 +209,7 @@ Deno.serve(async (req: Request) => {
       const { data: existingUser } = await supabase
         .from("user_profiles")
         .select("id")
-        .eq("phone", parsedPhone.normalizedPhone)
+        .in("phone", phoneLookupValues)
         .limit(1);
 
       if (existingUser && existingUser.length > 0) {

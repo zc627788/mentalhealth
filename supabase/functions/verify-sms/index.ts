@@ -75,6 +75,27 @@ function parsePhoneNumber(value: string) {
   };
 }
 
+function getPhoneLookupValues(
+  parsedPhone: ReturnType<typeof parsePhoneNumber>
+) {
+  if (!parsedPhone.normalizedPhone) {
+    return [];
+  }
+
+  if (parsedPhone.isDomestic) {
+    return [
+      parsedPhone.normalizedPhone,
+      `86${parsedPhone.normalizedPhone}`,
+      `+86${parsedPhone.normalizedPhone}`,
+    ];
+  }
+
+  return [
+    parsedPhone.normalizedPhone,
+    parsedPhone.normalizedPhone.replace(/^\+/, ""),
+  ];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -124,10 +145,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const phoneLookupValues = getPhoneLookupValues(parsedPhone);
+
     const { data: codeData, error: codeError } = await supabaseClient
       .from("sms_verification_codes")
       .select("*")
-      .eq("phone_number", parsedPhone.normalizedPhone)
+      .in("phone_number", phoneLookupValues)
       .eq("verification_code", verificationCode)
       .eq("is_used", false)
       .gt("expires_at", new Date().toISOString())
@@ -165,7 +188,7 @@ Deno.serve(async (req: Request) => {
       const { data: existingUser } = await supabaseClient
         .from("user_profiles")
         .select("id")
-        .eq("phone", parsedPhone.normalizedPhone)
+        .in("phone", phoneLookupValues)
         .limit(1);
 
       if (existingUser && existingUser.length > 0) {
@@ -176,10 +199,15 @@ Deno.serve(async (req: Request) => {
       }
 
       const userPassword = password || Math.random().toString(36).slice(-12);
+      const authPhone = parsedPhone.isDomestic
+        ? `+86${parsedPhone.normalizedPhone}`
+        : parsedPhone.normalizedPhone;
       const { data: authData, error: authError } =
         await supabaseClient.auth.admin.createUser({
           email: parsedPhone.authEmail,
+          phone: authPhone,
           password: userPassword,
+          phone_confirm: true,
           user_metadata: {
             phone: parsedPhone.normalizedPhone,
             name,
@@ -194,22 +222,43 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { error: profileError } = await supabaseClient
+      const profilePayload = {
+        id: authData.user.id,
+        phone: parsedPhone.normalizedPhone,
+        display_name: name,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: profileData, error: profileError } = await supabaseClient
         .from("user_profiles")
-        .insert({
-          id: authData.user.id,
-          phone: parsedPhone.normalizedPhone,
-          display_name: name,
-        });
+        .update(profilePayload)
+        .eq("id", authData.user.id)
+        .select("id")
+        .maybeSingle();
 
       if (profileError) {
-        console.error("Failed to create user profile:", profileError);
+        console.error("Failed to update user profile:", profileError);
         await supabaseClient.auth.admin.deleteUser(authData.user.id);
 
         return new Response(
           JSON.stringify({ error: "Registration failed. Please try again later." }),
           { status: 500, headers: corsHeaders }
         );
+      }
+
+      if (!profileData) {
+        const { error: upsertProfileError } = await supabaseClient
+          .from("user_profiles")
+          .upsert(profilePayload, { onConflict: "id" });
+
+        if (upsertProfileError) {
+          console.error("Failed to upsert user profile:", upsertProfileError);
+          await supabaseClient.auth.admin.deleteUser(authData.user.id);
+
+          return new Response(
+            JSON.stringify({ error: "Registration failed. Please try again later." }),
+            { status: 500, headers: corsHeaders }
+          );
+        }
       }
 
       const { data: regLink, error: regLinkErr } =
@@ -262,7 +311,7 @@ Deno.serve(async (req: Request) => {
       const { data: userProfile } = await supabaseClient
         .from("user_profiles")
         .select("id, display_name")
-        .eq("phone", parsedPhone.normalizedPhone)
+        .in("phone", phoneLookupValues)
         .limit(1);
 
       if (!userProfile || userProfile.length === 0) {

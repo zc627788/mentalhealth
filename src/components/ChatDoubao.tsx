@@ -19,7 +19,7 @@ interface Message {
 }
 
 export default function ChatDoubao() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   const location = useLocation();
   const { appointment: appointmentFromHistory, forceNonAppointment } =
@@ -61,7 +61,9 @@ export default function ChatDoubao() {
   >(null);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const currentLanguage = i18n.resolvedLanguage || i18n.language;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -132,7 +134,41 @@ export default function ChatDoubao() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages]);
+
+  useEffect(() => {
+
+    setMessages((prevMessages) => {
+
+      if (prevMessages.length === 0 || prevMessages[0].id !== "1") {
+
+        return prevMessages;
+
+      }
+
+      const nextWelcome = t("chat.doubaoWelcome");
+
+      if (prevMessages[0].content === nextWelcome) {
+
+        return prevMessages;
+
+      }
+
+      const updatedMessages = [...prevMessages];
+
+      updatedMessages[0] = {
+
+        ...updatedMessages[0],
+
+        content: nextWelcome,
+
+      };
+
+      return updatedMessages;
+
+    });
+
+  }, [currentLanguage, t]);
 
   // 初始化聊天记录
   const initStartedRef = useRef(false);
@@ -662,7 +698,7 @@ export default function ChatDoubao() {
                 <div className="bg-white text-gray-900 shadow-sm border border-blue-100 px-4 py-3 rounded-2xl max-w-xs">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-500">
-                      智心助手正在回复
+                      {t("chat.typingDoubao")}
                     </span>
                     <div className="flex space-x-1">
                       <div

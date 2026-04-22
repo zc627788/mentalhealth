@@ -185,7 +185,7 @@ export const resources = {
         clearBody: "只会清空当前会话内容，不会删除历史会话记录。",
         clearConfirm: "确认清空",
         doubaoWelcome:
-          "你好，我是知心助手。我会用温和、专业的方式陪你聊聊情绪、压力和当下的困扰。现在最想和我说的是什么？",
+          "你好！我是AI助手。今天有什么想和我聊聊的吗？无论是开心的瞬间还是烦心的小事，我都会在这里认真倾听~",
         peppyWelcome:
           "嗨，我是 Peppy！如果你想找个更轻松、更有活力的伙伴聊聊情绪和近况，我会一直在这里陪你。",
         expiredReply:
@@ -744,7 +744,7 @@ export const resources = {
           "Only the current conversation will be cleared. Your past sessions will remain available.",
         clearConfirm: "Clear now",
         doubaoWelcome:
-          "Hi, I'm Insight Companion. I'm here to listen with warmth and care. What would you like to talk about today?",
+          "Hello! I'm an AI assistant. Is there anything you'd like to talk about today? Whether it's a happy moment or something that's been bothering you, I'm here to listen~",
         peppyWelcome:
           "Hey, I'm Peppy. If you want a lighter, more upbeat space to talk through your day or emotions, I'm here for you.",
         expiredReply:
