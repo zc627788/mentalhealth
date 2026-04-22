@@ -18,7 +18,7 @@ export interface ChatSession {
   is_appointment: boolean;
   appointment_id: number | null;
   message_count: number;
-  last_message_at: string;
+  last_message_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +33,6 @@ export interface UserChatPreferences {
   updated_at: string;
 }
 
-// 聊天存储服务类
 export class ChatStorageService {
   private userId: string;
   private currentSessionId: number | null = null;
@@ -42,84 +41,138 @@ export class ChatStorageService {
     this.userId = userId;
   }
 
-  // 获取或创建当前会话
-  async getCurrentSession(
+  private buildSessionName(aiModel: string, isAppointment: boolean) {
+    const assistantName =
+      aiModel === "doubao"
+        ? "智心助手"
+        : aiModel === "peppy"
+        ? "Peppy助手"
+        : "通用聊天";
+
+    return `${isAppointment ? "预约" : "非预约"} - ${assistantName} - ${new Date().toLocaleString()}`;
+  }
+
+  private async deactivateSessions(
     aiModel: string,
-    isAppointment: boolean = false,
+    isAppointment: boolean,
     appointmentId?: number
-  ): Promise<number> {
-    if (this.currentSessionId) {
-      return this.currentSessionId;
+  ) {
+    let query = supabase
+      .from("chat_sessions")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("user_id", this.userId)
+      .eq("ai_model", aiModel)
+      .eq("is_appointment", isAppointment)
+      .eq("is_active", true);
+
+    if (isAppointment && appointmentId) {
+      query = query.eq("appointment_id", appointmentId);
     }
 
-    try {
-      // 查找活跃的会话，根据预约状态区分
-      let query = supabase
-        .from("chat_sessions")
-        .select("id")
-        .eq("user_id", this.userId)
-        .eq("ai_model", aiModel)
-        .eq("is_active", true)
-        .eq("is_appointment", isAppointment)
-        .order("created_at", { ascending: false })
-        .limit(1);
+    const { error } = await query;
 
-      // 如果是预约模式，需要根据 appointment_id 查找
-      if (isAppointment && appointmentId) {
-        query = query.eq("appointment_id", appointmentId);
-      }
-
-      const { data: existingSession, error: findError } = await query.single();
-
-      if (existingSession && !findError) {
-        this.currentSessionId = existingSession.id;
-        return this.currentSessionId;
-      }
-
-      // 创建新会话
-      const { data: newSession, error: createError } = await supabase
-        .from("chat_sessions")
-        .insert({
-          user_id: this.userId,
-          session_name: `${isAppointment ? "预约" : "非预约"} - ${
-            aiModel === "doubao"
-              ? "智心助手"
-              : aiModel === "peppy"
-              ? "Peppy助手"
-              : "通用聊天"
-          } - ${new Date().toLocaleString()}`,
-          ai_model: aiModel,
-          is_active: true,
-          is_appointment: isAppointment,
-          appointment_id: isAppointment ? appointmentId : null,
-          message_count: 0,
-          last_message_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (createError) {
-        console.error("创建会话失败:", createError);
-        throw createError;
-      }
-
-      this.currentSessionId = newSession.id;
-      return this.currentSessionId;
-    } catch (error) {
-      console.error("获取会话失败:", error);
+    if (error) {
+      console.error("Failed to deactivate sessions:", error);
       throw error;
     }
   }
 
-  // 保存消息到数据库
+  private async createSessionRecord(
+    aiModel: string,
+    isAppointment: boolean,
+    appointmentId?: number
+  ): Promise<number> {
+    await this.deactivateSessions(aiModel, isAppointment, appointmentId);
+
+    const { data, error } = await supabase
+      .from("chat_sessions")
+      .insert({
+        user_id: this.userId,
+        session_name: this.buildSessionName(aiModel, isAppointment),
+        ai_model: aiModel,
+        is_active: true,
+        is_appointment: isAppointment,
+        appointment_id: isAppointment ? appointmentId ?? null : null,
+        message_count: 0,
+        last_message_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("Failed to create chat session:", error);
+      throw error ?? new Error("Failed to create chat session");
+    }
+
+    this.currentSessionId = data.id;
+    return data.id;
+  }
+
+  async getCurrentSession(
+    aiModel: string,
+    isAppointment: boolean = false,
+    appointmentId?: number
+  ): Promise<number | null> {
+    if (this.currentSessionId) {
+      return this.currentSessionId;
+    }
+
+    let query = supabase
+      .from("chat_sessions")
+      .select("id")
+      .eq("user_id", this.userId)
+      .eq("ai_model", aiModel)
+      .eq("is_appointment", isAppointment)
+      .order("is_active", { ascending: false })
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (isAppointment && appointmentId) {
+      query = query.eq("appointment_id", appointmentId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.error("Failed to get current session:", error);
+      throw error;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    this.currentSessionId = data.id;
+    return data.id;
+  }
+
+  async ensureSession(
+    aiModel: string,
+    isAppointment: boolean = false,
+    appointmentId?: number
+  ): Promise<number> {
+    const existingSessionId = await this.getCurrentSession(
+      aiModel,
+      isAppointment,
+      appointmentId
+    );
+
+    if (existingSessionId) {
+      return existingSessionId;
+    }
+
+    return this.createSessionRecord(aiModel, isAppointment, appointmentId);
+  }
+
   async saveMessage(
     message: ChatMessage,
     aiModel: string,
     isAppointment: boolean = false,
     appointmentId?: number
-  ): Promise<void> {
+  ): Promise<number | null> {
     try {
-      const sessionId = await this.getCurrentSession(
+      const sessionId = await this.ensureSession(
         aiModel,
         isAppointment,
         appointmentId
@@ -138,19 +191,18 @@ export class ChatStorageService {
       });
 
       if (error) {
-        console.error("保存消息失败:", error);
+        console.error("Failed to save message:", error);
         throw error;
       }
 
-      // 更新会话统计
       await this.updateSessionStats(sessionId);
+      return sessionId;
     } catch (error) {
-      console.error("保存消息到数据库失败:", error);
-      // 不抛出错误，允许继续使用本地存储
+      console.error("Failed to persist message:", error);
+      return null;
     }
   }
 
-  // 从数据库加载消息
   async loadMessages(
     aiModel: string,
     isAppointment: boolean = false,
@@ -163,6 +215,10 @@ export class ChatStorageService {
         appointmentId
       );
 
+      if (!sessionId) {
+        return [];
+      }
+
       const { data: messages, error } = await supabase
         .from("chat_messages")
         .select("*")
@@ -170,11 +226,11 @@ export class ChatStorageService {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("加载消息失败:", error);
+        console.error("Failed to load messages:", error);
         return [];
       }
 
-      return messages.map((msg) => ({
+      return (messages || []).map((msg) => ({
         id: msg.metadata?.client_id || msg.id.toString(),
         content: msg.message,
         role: msg.sender === "user" ? "user" : "assistant",
@@ -183,15 +239,13 @@ export class ChatStorageService {
         aiModel: msg.ai_model,
       }));
     } catch (error) {
-      console.error("从数据库加载消息失败:", error);
+      console.error("Failed to load messages:", error);
       return [];
     }
   }
 
-  // 更新会话统计
   private async updateSessionStats(sessionId: number): Promise<void> {
     try {
-      // 先获取当前消息数量
       const { data: currentSession } = await supabase
         .from("chat_sessions")
         .select("message_count")
@@ -208,14 +262,13 @@ export class ChatStorageService {
         .eq("id", sessionId);
 
       if (error) {
-        console.error("更新会话统计失败:", error);
+        console.error("Failed to update session stats:", error);
       }
     } catch (error) {
-      console.error("更新会话统计失败:", error);
+      console.error("Failed to update session stats:", error);
     }
   }
 
-  // 获取用户的所有会话
   async getUserSessions(
     aiModel?: string,
     isAppointment?: boolean
@@ -225,7 +278,9 @@ export class ChatStorageService {
         .from("chat_sessions")
         .select("*")
         .eq("user_id", this.userId)
-        .order("last_message_at", { ascending: false });
+        .order("is_active", { ascending: false })
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
 
       if (aiModel) {
         query = query.eq("ai_model", aiModel);
@@ -238,111 +293,94 @@ export class ChatStorageService {
       const { data: sessions, error } = await query;
 
       if (error) {
-        console.error("获取用户会话失败:", error);
+        console.error("Failed to get user sessions:", error);
         return [];
       }
 
       return sessions || [];
     } catch (error) {
-      console.error("获取用户会话失败:", error);
+      console.error("Failed to get user sessions:", error);
       return [];
     }
   }
 
-  // 切换会话
   async switchSession(sessionId: number): Promise<void> {
     try {
-      // 停用当前会话
-      if (this.currentSessionId) {
-        await supabase
-          .from("chat_sessions")
-          .update({ is_active: false })
-          .eq("id", this.currentSessionId);
+      const { data: targetSession, error: targetError } = await supabase
+        .from("chat_sessions")
+        .select("ai_model, is_appointment, appointment_id")
+        .eq("id", sessionId)
+        .single();
+
+      if (targetError || !targetSession) {
+        throw targetError ?? new Error("Failed to load target session");
       }
 
-      // 激活新会话
-      await supabase
+      await this.deactivateSessions(
+        targetSession.ai_model,
+        targetSession.is_appointment,
+        targetSession.appointment_id ?? undefined
+      );
+
+      const { error } = await supabase
         .from("chat_sessions")
-        .update({ is_active: true })
+        .update({ is_active: true, updated_at: new Date().toISOString() })
         .eq("id", sessionId);
+
+      if (error) {
+        console.error("Failed to switch session:", error);
+        throw error;
+      }
 
       this.currentSessionId = sessionId;
     } catch (error) {
-      console.error("切换会话失败:", error);
+      console.error("Failed to switch session:", error);
       throw error;
     }
   }
 
-  // 创建新会话
   async createNewSession(
     aiModel: string,
     isAppointment: boolean = false,
     appointmentId?: number
   ): Promise<number> {
     try {
-      // 停用当前会话
-      if (this.currentSessionId) {
-        await supabase
-          .from("chat_sessions")
-          .update({ is_active: false })
-          .eq("id", this.currentSessionId);
-      }
-
-      // 创建新会话
-      const { data: newSession, error } = await supabase
-        .from("chat_sessions")
-        .insert({
-          user_id: this.userId,
-          session_name: `${isAppointment ? "预约" : "非预约"} - ${
-            aiModel === "doubao"
-              ? "智心助手"
-              : aiModel === "peppy"
-              ? "Peppy助手"
-              : "通用聊天"
-          } - ${new Date().toLocaleString()}`,
-          ai_model: aiModel,
-          is_active: true,
-          is_appointment: isAppointment,
-          appointment_id: isAppointment ? appointmentId : null,
-          message_count: 0,
-          last_message_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        console.error("创建新会话失败:", error);
-        throw error;
-      }
-
-      this.currentSessionId = newSession.id;
-      return this.currentSessionId;
+      return await this.createSessionRecord(aiModel, isAppointment, appointmentId);
     } catch (error) {
-      console.error("创建新会话失败:", error);
+      console.error("Failed to create new session:", error);
       throw error;
     }
   }
 
-  // 删除会话
   async deleteSession(sessionId: number): Promise<void> {
     try {
-      // 删除会话中的所有消息
-      await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+      const { error: messageDeleteError } = await supabase
+        .from("chat_messages")
+        .delete()
+        .eq("session_id", sessionId);
 
-      // 删除会话
-      await supabase.from("chat_sessions").delete().eq("id", sessionId);
+      if (messageDeleteError) {
+        throw messageDeleteError;
+      }
 
-      // 如果删除的是当前会话，重置当前会话ID
+      const { error: sessionDeleteError } = await supabase
+        .from("chat_sessions")
+        .delete()
+        .eq("id", sessionId);
+
+      if (sessionDeleteError) {
+        throw sessionDeleteError;
+      }
+
       if (this.currentSessionId === sessionId) {
         this.currentSessionId = null;
       }
     } catch (error) {
-      console.error("删除会话失败:", error);
+      console.error("Failed to delete session:", error);
       throw error;
     }
   }
 
-  // 获取用户偏好设置
   async getUserPreferences(): Promise<UserChatPreferences | null> {
     try {
       const { data: preferences, error } = await supabase
@@ -352,19 +390,17 @@ export class ChatStorageService {
         .single();
 
       if (error && error.code !== "PGRST116") {
-        // PGRST116 = no rows returned
-        console.error("获取用户偏好失败:", error);
+        console.error("Failed to get user preferences:", error);
         return null;
       }
 
       return preferences;
     } catch (error) {
-      console.error("获取用户偏好失败:", error);
+      console.error("Failed to get user preferences:", error);
       return null;
     }
   }
 
-  // 更新用户偏好设置
   async updateUserPreferences(
     preferences: Partial<UserChatPreferences>
   ): Promise<void> {
@@ -376,16 +412,15 @@ export class ChatStorageService {
       });
 
       if (error) {
-        console.error("更新用户偏好失败:", error);
+        console.error("Failed to update user preferences:", error);
         throw error;
       }
     } catch (error) {
-      console.error("更新用户偏好失败:", error);
+      console.error("Failed to update user preferences:", error);
       throw error;
     }
   }
 
-  // 获取指定会话的消息
   async getSessionMessages(sessionId: number): Promise<ChatMessage[]> {
     try {
       const { data: messages, error } = await supabase
@@ -395,11 +430,11 @@ export class ChatStorageService {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("获取会话消息失败:", error);
+        console.error("Failed to get session messages:", error);
         return [];
       }
 
-      return messages.map((msg) => ({
+      return (messages || []).map((msg) => ({
         id: msg.metadata?.client_id || msg.id.toString(),
         content: msg.message,
         role: msg.sender === "user" ? "user" : "assistant",
@@ -408,12 +443,11 @@ export class ChatStorageService {
         aiModel: msg.ai_model,
       }));
     } catch (error) {
-      console.error("获取会话消息失败:", error);
+      console.error("Failed to get session messages:", error);
       return [];
     }
   }
 
-  // 检查会话数量限制
   async checkSessionLimit(
     aiModel: string,
     isAppointment: boolean
@@ -422,12 +456,11 @@ export class ChatStorageService {
       const sessions = await this.getUserSessions(aiModel, isAppointment);
       return sessions.length < 30;
     } catch (error) {
-      console.error("检查会话限制失败:", error);
-      return true; // 出错时允许创建
+      console.error("Failed to check session limit:", error);
+      return true;
     }
   }
 
-  // 清空当前会话的消息（保留会话）
   async clearCurrentSessionMessages(
     aiModel: string,
     isAppointment: boolean,
@@ -440,11 +473,20 @@ export class ChatStorageService {
         appointmentId
       );
 
-      // 删除会话中的所有消息
-      await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+      if (!sessionId) {
+        return;
+      }
 
-      // 重置会话统计
-      await supabase
+      const { error: messageDeleteError } = await supabase
+        .from("chat_messages")
+        .delete()
+        .eq("session_id", sessionId);
+
+      if (messageDeleteError) {
+        throw messageDeleteError;
+      }
+
+      const { error: resetError } = await supabase
         .from("chat_sessions")
         .update({
           message_count: 0,
@@ -452,105 +494,83 @@ export class ChatStorageService {
           updated_at: new Date().toISOString(),
         })
         .eq("id", sessionId);
+
+      if (resetError) {
+        throw resetError;
+      }
     } catch (error) {
-      console.error("清空会话消息失败:", error);
+      console.error("Failed to clear current session messages:", error);
       throw error;
     }
   }
 
-  // 根据预约ID获取或创建会话（预约专用）
   async getOrCreateAppointmentSession(
     aiModel: string,
     appointmentId: number
   ): Promise<number> {
     try {
-      // 查找该预约的现有会话
-      const { data: existingSession, error: findError } = await supabase
+      const { data: existingSession, error } = await supabase
         .from("chat_sessions")
         .select("id")
         .eq("user_id", this.userId)
         .eq("ai_model", aiModel)
         .eq("is_appointment", true)
         .eq("appointment_id", appointmentId)
+        .order("is_active", { ascending: false })
+        .order("last_message_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (existingSession && !findError) {
+      if (error) {
+        throw error;
+      }
+
+      if (existingSession) {
         this.currentSessionId = existingSession.id;
-        return this.currentSessionId;
+        return existingSession.id;
       }
 
-      // 创建新的预约会话
-      const { data: newSession, error: createError } = await supabase
-        .from("chat_sessions")
-        .insert({
-          user_id: this.userId,
-          session_name: `预约 - ${
-            aiModel === "doubao"
-              ? "智心助手"
-              : aiModel === "peppy"
-              ? "Peppy助手"
-              : "通用聊天"
-          } - ${new Date().toLocaleString()}`,
-          ai_model: aiModel,
-          is_active: true,
-          is_appointment: true,
-          appointment_id: appointmentId,
-          message_count: 0,
-          last_message_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (createError) {
-        console.error("创建预约会话失败:", createError);
-        throw createError;
-      }
-
-      this.currentSessionId = newSession.id;
-      return this.currentSessionId;
+      return this.createSessionRecord(aiModel, true, appointmentId);
     } catch (error) {
-      console.error("获取预约会话失败:", error);
+      console.error("Failed to get or create appointment session:", error);
       throw error;
     }
   }
 }
 
-// 本地存储辅助函数（作为备用）
 export const LocalStorageHelper = {
-  // 保存到本地存储
   saveMessages: (key: string, messages: ChatMessage[]) => {
     try {
       localStorage.setItem(key, JSON.stringify(messages));
     } catch (error) {
-      console.error("保存到本地存储失败:", error);
+      console.error("Failed to save messages to localStorage:", error);
     }
   },
 
-  // 从本地存储加载
   loadMessages: (key: string): ChatMessage[] => {
     try {
       const stored = localStorage.getItem(key);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
+      if (!stored) {
+        return [];
       }
+
+      const parsed = JSON.parse(stored);
+      return parsed.map((msg: ChatMessage) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp),
+      }));
     } catch (error) {
-      console.error("从本地存储加载失败:", error);
+      console.error("Failed to load messages from localStorage:", error);
+      return [];
     }
-    return [];
   },
 
-  // 清除本地存储
   clearMessages: (key: string) => {
     try {
       localStorage.removeItem(key);
     } catch (error) {
-      console.error("清除本地存储失败:", error);
+      console.error("Failed to clear messages from localStorage:", error);
     }
   },
 };

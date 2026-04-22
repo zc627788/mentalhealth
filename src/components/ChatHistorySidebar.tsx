@@ -7,6 +7,7 @@ interface ChatHistorySidebarProps {
   aiModel: string;
   isAppointment: boolean;
   currentSessionId: number | null;
+  refreshToken?: number;
   onSessionSelect: (sessionId: number) => void;
   onNewSession: () => void;
   onDeleteSession: (sessionId: number) => void;
@@ -18,6 +19,7 @@ export default function ChatHistorySidebar({
   aiModel,
   isAppointment,
   currentSessionId,
+  refreshToken = 0,
   onSessionSelect,
   onNewSession,
   onDeleteSession,
@@ -64,7 +66,7 @@ export default function ChatHistorySidebar({
 
   useEffect(() => {
     loadSessions();
-  }, [chatStorage, aiModel, isAppointment]);
+  }, [chatStorage, aiModel, isAppointment, refreshToken]);
 
   const handleNewSession = async () => {
     if (!chatStorage) return;
@@ -98,11 +100,11 @@ export default function ChatHistorySidebar({
     }
   };
 
-  const truncateSessionName = (name: string, maxLength = 20) =>
+  const truncateSessionName = (name: string, maxLength = 28) =>
     name.length > maxLength ? `${name.slice(0, maxLength)}...` : name;
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-[22rem] min-w-[22rem] bg-white border-r border-gray-200 flex flex-col h-full">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">

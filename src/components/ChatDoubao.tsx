@@ -63,6 +63,8 @@ export default function ChatDoubao() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  const [sessionRefreshToken, setSessionRefreshToken] = useState(0);
+
   const currentLanguage = i18n.resolvedLanguage || i18n.language;
 
   const scrollToBottom = () => {
@@ -329,12 +331,24 @@ export default function ChatDoubao() {
     // 保存到数据库和本地存储
     if (chatStorage) {
       try {
-        await chatStorage.saveMessage(
+        const nextSessionId = await chatStorage.saveMessage(
           newUserMessage,
           aiModel,
           isAppointmentMode,
           currentAppointmentId || undefined
-        );
+        );
+
+        if (nextSessionId) {
+
+          if (currentSessionId !== nextSessionId) {
+
+            setCurrentSessionId(nextSessionId);
+
+          }
+
+          setSessionRefreshToken((prev) => prev + 1);
+
+        }
       } catch (error) {
         console.error("保存用户消息到数据库失败:", error);
       }
@@ -430,7 +444,9 @@ export default function ChatDoubao() {
 
       const resetMessages = [defaultMessage];
       setMessages(resetMessages);
-      setConversationHistory([]);
+      setConversationHistory([]);
+
+      setSessionRefreshToken((prev) => prev + 1);
     } catch (error) {
       console.error("清空对话失败:", error);
     }
@@ -528,7 +544,9 @@ export default function ChatDoubao() {
 
       setIsAppointmentMode(false);
       setIsAppointmentActive(false);
-      setCurrentAppointmentId(null);
+      setCurrentAppointmentId(null);
+
+      setSessionRefreshToken((prev) => prev + 1);
 
       const resetMessages = [defaultMessage];
       setMessages(resetMessages);
@@ -544,7 +562,9 @@ export default function ChatDoubao() {
       // 如果删除的是当前会话，重置为默认状态
       setMessages([defaultMessage]);
       setConversationHistory([]);
-      setCurrentSessionId(null);
+      setCurrentSessionId(null);
+
+      setSessionRefreshToken((prev) => prev + 1);
     }
   };
 
@@ -556,7 +576,9 @@ export default function ChatDoubao() {
           <ChatHistorySidebar
             aiModel={aiModel}
             isAppointment={isAppointmentMode}
-            currentSessionId={currentSessionId}
+            currentSessionId={currentSessionId}
+
+            refreshToken={sessionRefreshToken}
             onSessionSelect={handleSessionSelect}
             onNewSession={handleNewSession}
             onDeleteSession={handleDeleteSession}
@@ -571,8 +593,8 @@ export default function ChatDoubao() {
         {/* Header - 固定头部 */}
         <header className="bg-white shadow-sm border-b flex-shrink-0">
           <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-4">
+            <div className="flex justify-between items-center gap-4 h-16">
+              <div className="flex items-center space-x-4 min-w-0 flex-1">
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                   className="text-gray-500 hover:text-gray-700"
@@ -591,7 +613,7 @@ export default function ChatDoubao() {
                     />
                   </svg>
                 </button>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 min-w-0">
                   <div className="bg-blue-100 p-2 rounded-full">
                     <svg
                       className="h-5 w-5 text-blue-600"
@@ -607,11 +629,11 @@ export default function ChatDoubao() {
                       />
                     </svg>
                   </div>
-                  <div>
-                    <h1 className="text-xl font-semibold text-gray-900">
+                  <div className="min-w-0">
+                    <h1 className="text-xl font-semibold text-gray-900 truncate">
                       {t("dashboard.doubaoTitle")}
                     </h1>
-                    <p className="text-sm text-blue-600">{t("dashboard.doubaoSubtitle")}</p>
+                    <p className="text-sm text-blue-600 truncate">{t("dashboard.doubaoSubtitle")}</p>
                   </div>
                 </div>
                 {!forceNonAppointment && (
@@ -628,12 +650,12 @@ export default function ChatDoubao() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3 pr-36 lg:pr-44 flex-shrink-0">
                 <button
                   onClick={() => setShowClearConfirm(true)}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >{t("chat.clearCurrent")}</button>
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 max-w-36 truncate lg:max-w-48">
                   {user.email.includes("temp.local")
                     ? user.email.replace("@temp.local", "")
                     : user?.email}

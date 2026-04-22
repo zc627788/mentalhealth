@@ -4,6 +4,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -194,10 +195,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isChatRoute = location.pathname.startsWith("/chat-");
+
   return (
     <div className="relative">
-      <div className="fixed right-4 top-4 z-[80]">
-        <LanguageSwitcher />
+      <div className={`fixed z-[80] ${isChatRoute ? "right-3 top-3" : "right-4 top-4"}`}>
+        <LanguageSwitcher compact={isChatRoute} />
       </div>
       {children}
     </div>
